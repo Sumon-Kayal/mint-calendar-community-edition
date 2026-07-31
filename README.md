@@ -13,12 +13,7 @@ Mint Calendar (Community Edition) is a community-maintained, Linux Mint-flavored
 and packaged independently for distribution outside the GNOME and Linux Mint release channels.
 
 > [!WARNING]
-> This build tracks upstream's `main` branch (currently `51.beta`), not a tagged stable release.
-> It includes GNOME Calendar's still-in-progress internals rewrite and requires notably newer
-> GTK4/libadwaita than Mint's own `48.1+mint1` release (GTK4 >= 4.21.2, libadwaita >= 1.8~alpha,
-> plus a new `blueprint-compiler` build dependency). Whether your Mint/Ubuntu system's repos
-> already carry those versions hasn't been verified — check before relying on this build, and
-> expect the first CI run to surface anything that doesn't resolve cleanly.
+> This build tracks upstream's `main` branch [currently `50.stable from GitHub mirror](https://github.com/GNOME/gnome-calendar) stable [release](https://github.com/GNOME/gnome-calendar/releases/tag/50.0).
 
 ## Installing
 
