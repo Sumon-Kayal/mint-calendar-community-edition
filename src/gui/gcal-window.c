@@ -29,6 +29,7 @@
 #include "gcal-drop-overlay.h"
 #include "gcal-event-editor-dialog.h"
 #include "gcal-event-widget.h"
+#include "gcal-context.h"
 #include "gcal-manager.h"
 #include "gcal-month-view.h"
 #include "gcal-quick-add-popover.h"
@@ -101,7 +102,6 @@ struct _GcalWindow
   AdwApplicationWindow parent;
 
   /* upper level widgets */
-  AdwViewStackPage       *agenda_page;
   GtkWidget              *header_bar;
   AdwToastOverlay        *overlay;
   AdwViewStack           *views_stack;
@@ -118,7 +118,6 @@ struct _GcalWindow
   GtkWidget          *menu_button;
 
   GcalEventEditorDialog *event_editor;
-  GcalCalendarManagementDialog *calendar_management;
   GtkWidget             *import_dialog;
 
   GtkWidget          *last_focused_widget;
@@ -130,6 +129,7 @@ struct _GcalWindow
   GtkWidget          *views[N_WEEKDAYS - 1];
   gboolean            subscribed;
 
+  GcalContext        *context;
   GcalWindowView      active_view;
 
   GDateTime          *active_date;
@@ -171,6 +171,7 @@ enum
   PROP_0,
   PROP_ACTIVE_DATE,
   PROP_ACTIVE_VIEW,
+  PROP_CONTEXT,
   PROP_NEW_EVENT_MODE,
   N_PROPS
 };
@@ -222,8 +223,11 @@ update_today_action_enabled (GcalWindow *window)
 static void
 focus_last_focused_widget (GcalWindow *self)
 {
-  if (self->last_focused_widget && gtk_widget_grab_focus (self->last_focused_widget))
-    g_clear_weak_pointer (&self->last_focused_widget);
+  if (self->last_focused_widget)
+    {
+      gtk_widget_grab_focus (self->last_focused_widget);
+      g_clear_weak_pointer (&self->last_focused_widget);
+    }
 }
 
 static gchar*
@@ -291,16 +295,16 @@ get_next_date_tooltip (GcalWindow  *window,
 static void
 maybe_add_subscribers_to_timeline (GcalWindow *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalTimeline *timeline;
 
   if (self->subscribed)
     return;
 
 
-  timeline = gcal_manager_get_timeline (gcal_context_get_manager (context));
+  timeline = gcal_manager_get_timeline (gcal_context_get_manager (self->context));
   gcal_timeline_add_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->week_view));
   gcal_timeline_add_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->month_view));
+  gcal_timeline_add_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->agenda_view));
   gcal_timeline_add_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->date_chooser));
 
   self->subscribed = TRUE;
@@ -341,13 +345,12 @@ update_active_date (GcalWindow *window,
 static void
 recalculate_calendar_colors_css (GcalWindow *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   g_autoptr (GString) css_colors = NULL;
   g_autoptr (GList) calendars = NULL;
   GcalManager *manager;
 
   css_colors = g_string_new (NULL);
-  manager = gcal_context_get_manager (context);
+  manager = gcal_context_get_manager (self->context);
   calendars = gcal_manager_get_calendars (manager);
   for (GList *l = calendars; l; l = l->next)
     {
@@ -519,40 +522,9 @@ switch_prev_view (GcalWindow *self)
   update_active_date (self, previous_date);
 }
 
-static void
-add_or_remove_agenda_view_to_timeline (GcalWindow *self)
-{
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  GcalTimeline *timeline = gcal_manager_get_timeline (gcal_context_get_manager (context));
-
-  if (adw_view_stack_page_get_visible (self->agenda_page))
-    gcal_timeline_add_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->agenda_view));
-  else
-    gcal_timeline_remove_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->agenda_view));
-}
-
 /*
  * Callbacks
  */
-
-static void
-on_agenda_page_visible_changed_cb (AdwViewStackPage *agenda_page,
-                                   GParamSpec       *pspec,
-                                   GcalWindow       *self)
-{
-  g_assert (GCAL_IS_WINDOW (self));
-
-  add_or_remove_agenda_view_to_timeline (self);
-}
-
-static void
-event_editor_closed_cb (GcalEventEditorDialog *dialog,
-                        GcalWindow            *self)
-{
-  g_assert (GCAL_IS_WINDOW (self));
-
-  focus_last_focused_widget (self);
-}
 
 static void
 on_show_calendars_action_activated (GSimpleAction *action,
@@ -560,8 +532,9 @@ on_show_calendars_action_activated (GSimpleAction *action,
                                     gpointer       user_data)
 {
   GcalWindow *self = GCAL_WINDOW (user_data);
+  GcalCalendarManagementDialog *dialog = gcal_calendar_management_dialog_new (self->context);
 
-  adw_dialog_present (ADW_DIALOG (self->calendar_management), GTK_WIDGET (self));
+  adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (self));
 }
 
 static void
@@ -629,7 +602,6 @@ on_window_new_event_cb (GSimpleAction *action,
                         GVariant      *param,
                         gpointer       user_data)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   g_autoptr (ECalComponent) comp = NULL;
   g_autoptr (GDateTime) start = NULL;
   g_autoptr (GDateTime) end = NULL;
@@ -645,12 +617,13 @@ on_window_new_event_cb (GSimpleAction *action,
                                0, 0, 0);
   end = g_date_time_add_days (start, 1);
 
-  manager = gcal_context_get_manager (context);
+  manager = gcal_context_get_manager (self->context);
   comp = build_component_from_details ("", start, end);
   default_calendar = gcal_manager_get_default_calendar (manager);
   event = gcal_event_new (default_calendar, comp, NULL);
 
-  gcal_event_editor_dialog_present_event (self->event_editor, GTK_WIDGET (self), event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
+  gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
 }
 
 static void
@@ -888,7 +861,8 @@ edit_event (GcalQuickAddPopover *popover,
             GcalEvent           *event,
             GcalWindow          *self)
 {
-  gcal_event_editor_dialog_present_event (self->event_editor, GTK_WIDGET (self), event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
+  gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
 }
 
 static void
@@ -896,7 +870,6 @@ create_event_detailed_cb (GcalView   *view,
                           GcalRange  *range,
                           GcalWindow *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   g_autoptr (GDateTime) range_start = NULL;
   g_autoptr (GDateTime) range_end = NULL;
   GcalCalendar *default_calendar;
@@ -904,14 +877,15 @@ create_event_detailed_cb (GcalView   *view,
   ECalComponent *comp;
   GcalEvent *event;
 
-  manager = gcal_context_get_manager (context);
+  manager = gcal_context_get_manager (self->context);
   range_start = gcal_range_get_start (range);
   range_end = gcal_range_get_end (range);
   comp = build_component_from_details ("", range_start, range_end);
   default_calendar = gcal_manager_get_default_calendar (manager);
   event = gcal_event_new (default_calendar, comp, NULL);
 
-  gcal_event_editor_dialog_present_event (self->event_editor, GTK_WIDGET (self), event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
+  gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
 
   g_clear_object (&comp);
 }
@@ -928,7 +902,8 @@ event_preview_cb (GcalEventWidget        *event_widget,
     {
     case GCAL_EVENT_PREVIEW_ACTION_EDIT:
       event = gcal_event_widget_get_event (event_widget);
-      gcal_event_editor_dialog_present_event (self->event_editor, GTK_WIDGET (self), event, FALSE);
+      adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
+      gcal_event_editor_dialog_set_event (self->event_editor, event, FALSE);
       break;
 
     case GCAL_EVENT_PREVIEW_ACTION_NONE:
@@ -972,7 +947,6 @@ static void
 on_toast_dismissed_cb (AdwToast   *toast,
                        GcalWindow *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalRecurrenceModType modifier;
   GcalManager *manager;
   GcalEvent *event;
@@ -983,7 +957,7 @@ on_toast_dismissed_cb (AdwToast   *toast,
   if (!self->delete_event_toast)
     GCAL_RETURN();
 
-  manager = gcal_context_get_manager (context);
+  manager = gcal_context_get_manager (self->context);
   event = g_object_get_data (G_OBJECT (toast), "event");
   modifier = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (toast), "modifier"));
 
@@ -1094,7 +1068,7 @@ on_ics_files_filtered_cb (GObject      *source_object,
     {
       g_clear_pointer (&self->import_dialog, gtk_widget_unparent);
 
-      self->import_dialog = gcal_import_dialog_new_for_file_list (filter_result->ics_files);
+      self->import_dialog = gcal_import_dialog_new_for_file_list (self->context, filter_result->ics_files);
       adw_dialog_present (ADW_DIALOG (self->import_dialog), GTK_WIDGET (self));
 
       g_object_add_weak_pointer (G_OBJECT (self->import_dialog), (gpointer *)&self->import_dialog);
@@ -1179,6 +1153,8 @@ gcal_window_finalize (GObject *object)
       g_clear_pointer (&window->event_creation_data, g_free);
     }
 
+  g_clear_object (&window->context);
+
   gcal_clear_date_time (&window->active_date);
 
   g_clear_object (&window->colors_provider);
@@ -1191,13 +1167,12 @@ gcal_window_finalize (GObject *object)
 static void
 gcal_window_dispose (GObject *object)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalTimeline *timeline;
   GcalWindow *self;
 
   self = GCAL_WINDOW (object);
 
-  timeline = gcal_manager_get_timeline (gcal_context_get_manager (context));
+  timeline = gcal_manager_get_timeline (gcal_context_get_manager (self->context));
   gcal_timeline_remove_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->week_view));
   gcal_timeline_remove_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->month_view));
   gcal_timeline_remove_subscriber (timeline, GCAL_TIMELINE_SUBSCRIBER (self->agenda_view));
@@ -1217,7 +1192,6 @@ gcal_window_dispose (GObject *object)
 static void
 gcal_window_constructed (GObject *object)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalWindow *self;
   GSettings *settings;
   gboolean maximized;
@@ -1231,7 +1205,7 @@ gcal_window_constructed (GObject *object)
   G_OBJECT_CLASS (gcal_window_parent_class)->constructed (object);
 
   /* Load saved geometry *after* the construct-time properties are set */
-  settings = gcal_context_get_settings (context);
+  settings = gcal_context_get_settings (self->context);
 
   maximized = g_settings_get_boolean (settings, "window-maximized");
   g_settings_get (settings, "window-size", "(ii)", &width, &height);
@@ -1241,10 +1215,25 @@ gcal_window_constructed (GObject *object)
   if (maximized)
     gtk_window_maximize (GTK_WINDOW (self));
 
+  /*
+   * FIXME: this is a hack around the issue that happens when trying to bind
+   * these properties using the GtkBuilder .ui file.
+   */
+  g_object_bind_property (self, "context", self->calendars_list, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->weather_settings, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->week_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->month_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->agenda_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->date_chooser, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->event_editor, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->quick_add_popover, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->sync_indicator, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "context", self->search_button, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+
   /* CSS */
   load_css_providers (self);
 
-  g_object_connect (gcal_context_get_manager (context),
+  g_object_connect (gcal_context_get_manager (self->context),
                     "swapped-object-signal::calendar-added", recalculate_calendar_colors_css, self,
                     "swapped-object-signal::calendar-changed", recalculate_calendar_colors_css, self,
                     "swapped-object-signal::calendar-removed", recalculate_calendar_colors_css, self,
@@ -1279,6 +1268,18 @@ gcal_window_set_property (GObject      *object,
       set_new_event_mode (GCAL_WINDOW (object), g_value_get_boolean (value));
       break;
 
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      g_settings_bind (gcal_context_get_settings (self->context),
+                       "active-view",
+                       self,
+                       "active-view",
+                       G_SETTINGS_BIND_SET | G_SETTINGS_BIND_GET);
+
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
@@ -1308,6 +1309,10 @@ gcal_window_get_property (GObject    *object,
       g_value_set_boolean (value, self->new_event_mode);
       break;
 
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
@@ -1321,7 +1326,6 @@ gcal_window_get_property (GObject    *object,
 static void
 gcal_window_unmap (GtkWidget *widget)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalWindow *self;
   GSettings *settings;
   gint height;
@@ -1330,7 +1334,7 @@ gcal_window_unmap (GtkWidget *widget)
   GCAL_ENTRY;
 
   self = GCAL_WINDOW (widget);
-  settings = gcal_context_get_settings (context);
+  settings = gcal_context_get_settings (self->context);
 
   gtk_window_get_default_size (GTK_WINDOW (self), &width, &height);
 
@@ -1353,7 +1357,6 @@ gcal_window_class_init (GcalWindowClass *klass)
   g_type_ensure (GCAL_TYPE_CALENDAR_NAVIGATION_BUTTON);
   g_type_ensure (GCAL_TYPE_DATE_CHOOSER);
   g_type_ensure (GCAL_TYPE_EVENT_EDITOR_DIALOG);
-  g_type_ensure (GCAL_TYPE_CALENDAR_MANAGEMENT_DIALOG);
   g_type_ensure (GCAL_TYPE_MANAGER);
   g_type_ensure (GCAL_TYPE_MONTH_VIEW);
   g_type_ensure (GCAL_TYPE_QUICK_ADD_POPOVER);
@@ -1387,6 +1390,12 @@ gcal_window_class_init (GcalWindowClass *klass)
                                                     GCAL_WINDOW_VIEW_MONTH,
                                                     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "Context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+
   properties[PROP_NEW_EVENT_MODE] = g_param_spec_boolean ("new-event-mode",
                                                           "New Event mode",
                                                           "Whether the window is in new-event-mode or not",
@@ -1399,11 +1408,9 @@ gcal_window_class_init (GcalWindowClass *klass)
 
   /* widgets */
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, agenda_view);
-  gtk_widget_class_bind_template_child (widget_class, GcalWindow, agenda_page);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, calendars_list);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, date_chooser);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, event_editor);
-  gtk_widget_class_bind_template_child (widget_class, GcalWindow, calendar_management);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, header_bar);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, menu_button);
   gtk_widget_class_bind_template_child (widget_class, GcalWindow, month_view);
@@ -1449,7 +1456,6 @@ gcal_window_class_init (GcalWindowClass *klass)
 static void
 gcal_window_init (GcalWindow *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   static const GActionEntry actions[] = {
     {"change-view", on_view_action_activated, "i" },
     {"next-date", on_window_next_date_activated_cb },
@@ -1488,15 +1494,6 @@ gcal_window_init (GcalWindow *self)
                               G_N_ELEMENTS(drop_types));
 
   gcal_drop_overlay_set_drop_target(self->drop_overlay, self->drop_target);
-  g_signal_connect_object (self->event_editor, "closed", G_CALLBACK (event_editor_closed_cb), self, 0);
-
-  g_settings_bind (gcal_context_get_settings (context),
-                   "active-view",
-                   self,
-                   "active-view",
-                   G_SETTINGS_BIND_SET | G_SETTINGS_BIND_GET);
-
-  g_signal_connect (self->agenda_page, "notify::visible", G_CALLBACK (on_agenda_page_visible_changed_cb), self);
 }
 
 /**
@@ -1514,6 +1511,7 @@ gcal_window_new_with_date (GcalApplication *app,
 {
   return g_object_new (GCAL_TYPE_WINDOW,
                        "application", GTK_APPLICATION (app),
+                       "context", gcal_application_get_context (app),
                        "active-date", date,
                        NULL);
 }
@@ -1582,7 +1580,7 @@ gcal_window_import_files (GcalWindow  *self,
 
   g_clear_pointer (&self->import_dialog, gtk_widget_unparent);
 
-  self->import_dialog = gcal_import_dialog_new_for_files (files, n_files);
+  self->import_dialog = gcal_import_dialog_new_for_files (self->context, files, n_files);
   adw_dialog_present (ADW_DIALOG (self->import_dialog), GTK_WIDGET (self));
 
   g_object_add_weak_pointer (G_OBJECT (self->import_dialog), (gpointer *)&self->import_dialog);

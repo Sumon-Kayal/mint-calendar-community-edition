@@ -34,6 +34,8 @@ struct _GcalWeatherSettings
   GtkEditable        *weather_location_entry;
 
   GWeatherLocation   *location;
+
+  GcalContext        *context;
 };
 
 
@@ -50,6 +52,15 @@ static void          on_weather_auto_location_changed_cb         (GtkSwitch     
 
 G_DEFINE_TYPE (GcalWeatherSettings, gcal_weather_settings, GTK_TYPE_BOX)
 
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
+
+static GParamSpec *properties [N_PROPS] = { NULL, };
+
 
 /*
  * Auxiliary methods
@@ -64,13 +75,13 @@ load_weather_settings (GcalWeatherSettings *self)
   GSettings *settings;
   gboolean show_weather;
   gboolean auto_location;
-  GcalContext *context;
 
   GCAL_ENTRY;
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  settings = gcal_context_get_settings (context);
+  if (!self->context)
+    GCAL_RETURN ();
 
+  settings = gcal_context_get_settings (self->context);
   value = g_settings_get_value (settings, "weather-settings");
 
   g_variant_get (value, "(bbsmv)",
@@ -114,7 +125,6 @@ load_weather_settings (GcalWeatherSettings *self)
 static void
 save_weather_settings (GcalWeatherSettings *self)
 {
-  GcalContext *context;
   GSettings *settings;
   GVariant *value;
   GVariant *vlocation;
@@ -122,11 +132,12 @@ save_weather_settings (GcalWeatherSettings *self)
 
   GCAL_ENTRY;
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
+  if (!self->context)
+    GCAL_RETURN ();
 
   vlocation = self->location ? gweather_location_serialize (self->location) : NULL;
 
-  settings = gcal_context_get_settings (context);
+  settings = gcal_context_get_settings (self->context);
   value = g_variant_new ("(bbsmv)",
                          gtk_switch_get_active (self->show_weather_switch),
                          gtk_switch_get_active (self->weather_auto_location_switch),
@@ -173,13 +184,10 @@ static void
 manage_weather_service (GcalWeatherSettings *self)
 {
   GcalWeatherService *weather_service;
-  GcalContext *context;
 
   GCAL_ENTRY;
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-
-  weather_service = gcal_context_get_weather_service (context);
+  weather_service = gcal_context_get_weather_service (self->context);
 
   if (gtk_switch_get_active (self->show_weather_switch))
     {
@@ -265,8 +273,52 @@ gcal_weather_settings_finalize (GObject *object)
   GcalWeatherSettings *self = (GcalWeatherSettings *)object;
 
   g_clear_object (&self->location);
+  g_clear_object (&self->context);
 
   G_OBJECT_CLASS (gcal_weather_settings_parent_class)->finalize (object);
+}
+
+static void
+gcal_weather_settings_get_property (GObject    *object,
+                                    guint       prop_id,
+                                    GValue     *value,
+                                    GParamSpec *pspec)
+{
+  GcalWeatherSettings *self = GCAL_WEATHER_SETTINGS (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_weather_settings_set_property (GObject      *object,
+                                    guint         prop_id,
+                                    const GValue *value,
+                                    GParamSpec   *pspec)
+{
+  GcalWeatherSettings *self = GCAL_WEATHER_SETTINGS (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      load_weather_settings (self);
+      update_menu_weather_sensitivity (self);
+      manage_weather_service (self);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
 }
 
 static void
@@ -276,6 +328,16 @@ gcal_weather_settings_class_init (GcalWeatherSettingsClass *klass)
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
 
   object_class->finalize = gcal_weather_settings_finalize;
+  object_class->get_property = gcal_weather_settings_get_property;
+  object_class->set_property = gcal_weather_settings_set_property;
+
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "Context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_PROPS, properties);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/gcal-weather-settings.ui");
 
@@ -292,8 +354,4 @@ static void
 gcal_weather_settings_init (GcalWeatherSettings *self)
 {
   gtk_widget_init_template (GTK_WIDGET (self));
-
-  load_weather_settings (self);
-  update_menu_weather_sensitivity (self);
-  manage_weather_service (self);
 }

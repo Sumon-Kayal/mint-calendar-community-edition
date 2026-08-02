@@ -44,6 +44,7 @@ struct _GcalEventPopover
   GtkLabel           *summary_label;
   GtkImage           *read_only_icon;
 
+  GcalContext        *context;
   GcalEvent          *event;
 };
 
@@ -56,6 +57,7 @@ G_DEFINE_TYPE (GcalEventPopover, gcal_event_popover, GTK_TYPE_POPOVER)
 enum
 {
   PROP_0,
+  PROP_CONTEXT,
   PROP_EVENT,
   N_PROPS
 };
@@ -98,10 +100,9 @@ static gchar*
 format_time (GcalEventPopover *self,
              GDateTime        *date)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalTimeFormat time_format;
 
-  time_format = gcal_context_get_time_format (context);
+  time_format = gcal_context_get_time_format (self->context);
 
   switch (time_format)
     {
@@ -259,15 +260,15 @@ format_single_day (GcalEventPopover *self,
         {
           /*
            * Translators: %1$s is the start hour, and %2$s is the end hour, for
-           * example: "Today, 19:00 – 22:00"
+           * example: "Today, 19:00 — 22:00"
            */
-          return g_strdup_printf (_("Today, %1$s – %2$s"), start_hours, end_hours);
+          return g_strdup_printf (_("Today, %1$s — %2$s"), start_hours, end_hours);
         }
       else if (n_days_from_dt == 1)
         {
           /*
            * Translators: %1$s is the start hour, and %2$s is the end hour, for
-           * example: "Tomorrow, 19:00 – 22:00"
+           * example: "Tomorrow, 19:00 — 22:00"
            */
           return g_strdup_printf (_("Tomorrow, %1$s – %2$s"), start_hours, end_hours);
         }
@@ -275,7 +276,7 @@ format_single_day (GcalEventPopover *self,
         {
           /*
            * Translators: %1$s is the start hour, and %2$s is the end hour, for
-           * example: "Tomorrow, 19:00 – 22:00"
+           * example: "Tomorrow, 19:00 — 22:00"
            */
           return g_strdup_printf (_("Yesterday, %1$s – %2$s"), start_hours, end_hours);
         }
@@ -284,7 +285,7 @@ format_single_day (GcalEventPopover *self,
           /*
            * Translators: %1$s is a month name (e.g. November), %2$d is the day
            * of month, %3$s is the start hour, and %4$s is the end hour. This
-           * format string results in dates like "November 21, 19:00 – 22:00".
+           * format string results in dates like "November 21, 19:00 — 22:00".
            */
           return g_strdup_printf (_("%1$s %2$d, %3$s – %4$s"),
                                   get_month_name (g_date_time_get_month (start_dt) - 1),
@@ -299,7 +300,7 @@ format_single_day (GcalEventPopover *self,
            * of month, %3$d is the year, %4$s is the start hour, and %5$s is the
            * end hour. This format string results in dates like:
            *
-           * "November 21, 2021, 19:00 – 22:00".
+           * "November 21, 2021, 19:00 — 22:00".
            */
           return g_strdup_printf (_("%1$s %2$d, %3$d, %4$s – %5$s"),
                                   get_month_name (g_date_time_get_month (start_dt) - 1),
@@ -418,8 +419,8 @@ update_date_time_label (GcalEventPopover *self)
       
       end_str = format_multiday_date (self, real_end_dt, show_year, show_hours);
 
-      /* Translators: %1$s is the start date, and %2$s. For example: June 21 – November 29, 2022 */
-      g_string_printf (string, _("%1$s – %2$s"), start_str, end_str);
+      /* Translators: %1$s is the start date, and %2$s. For example: June 21 - November 29, 2022 */
+      g_string_printf (string, _("%1$s — %2$s"), start_str, end_str);
 
     }
   else
@@ -491,8 +492,9 @@ setup_description_label (GcalEventPopover *self)
   g_autofree gchar *meeting_url = NULL;
   g_autoptr (GString) string = NULL;
 
-  gcal_utils_extract_meeting_url (gcal_event_get_description (self->event), &description, &meeting_url);
-
+  gcal_utils_extract_google_section (gcal_event_get_description (self->event),
+                                     &description,
+                                     &meeting_url);
   g_strstrip (description);
 
   if (meeting_url)
@@ -642,31 +644,6 @@ on_join_meeting_cb (GcalMeetingRow   *meeting_row,
 }
 
 static void
-on_map_button_clicked_cb (GtkButton        *action_button,
-                          GcalEventPopover *self)
-{
-  g_autoptr (GtkUriLauncher) uri_launcher = NULL;
-  g_autofree gchar *location = NULL;
-  g_autofree gchar *uri = NULL;
-  GtkWindow *window;
-
-  window = GTK_WINDOW (gtk_widget_get_root (GTK_WIDGET (self)));
-  g_assert (window != NULL);
-
-  location = g_strdup (gcal_event_get_location (self->event));
-  g_strstrip (location);
-
-  uri = g_strconcat ("maps:q=", location, NULL);
-  g_assert (g_uri_is_valid (uri, G_URI_FLAGS_NONE, NULL));
-  uri_launcher = gtk_uri_launcher_new (uri);
-  gtk_uri_launcher_launch (uri_launcher,
-                           window,
-                           NULL,
-                           on_uri_launched_cb,
-                           g_object_ref (self));
-}
-
-static void
 on_time_format_changed_cb (GcalEventPopover *self)
 {
   GCAL_ENTRY;
@@ -701,6 +678,7 @@ gcal_event_popover_finalize (GObject *object)
 {
   GcalEventPopover *self = (GcalEventPopover *)object;
 
+  g_clear_object (&self->context);
   g_clear_object (&self->event);
 
   G_OBJECT_CLASS (gcal_event_popover_parent_class)->finalize (object);
@@ -716,6 +694,10 @@ gcal_event_popover_get_property (GObject    *object,
 
   switch (prop_id)
     {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
     case PROP_EVENT:
       g_value_set_object (value, self->event);
       break;
@@ -735,6 +717,16 @@ gcal_event_popover_set_property (GObject      *object,
 
   switch (prop_id)
     {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+      g_signal_connect_object (self->context,
+                               "notify::time-format",
+                               G_CALLBACK (on_time_format_changed_cb),
+                               self,
+                               G_CONNECT_SWAPPED);
+      break;
+
     case PROP_EVENT:
       g_assert (self->event == NULL);
       set_event_internal (self, g_value_get_object (value));
@@ -757,6 +749,16 @@ gcal_event_popover_class_init (GcalEventPopoverClass *klass)
 
   widget_class->map = gcal_event_popover_map;
 
+  /**
+   * GcalEventPopover::context:
+   *
+   * The context of the event popover.
+   */
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "Context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
   /**
    * GcalEventPopover::event:
    *
@@ -795,27 +797,20 @@ gcal_event_popover_class_init (GcalEventPopoverClass *klass)
 
   gtk_widget_class_bind_template_callback (widget_class, on_action_button_clicked_cb);
   gtk_widget_class_bind_template_callback (widget_class, on_ics_export_button_clicked_cb);
-  gtk_widget_class_bind_template_callback (widget_class, on_map_button_clicked_cb);
 }
 
 static void
 gcal_event_popover_init (GcalEventPopover *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-
   gtk_widget_init_template (GTK_WIDGET (self));
-
-  g_signal_connect_object (context,
-                           "notify::time-format",
-                           G_CALLBACK (on_time_format_changed_cb),
-                           self,
-                           G_CONNECT_SWAPPED);
 }
 
 GtkWidget*
-gcal_event_popover_new (GcalEvent   *event)
+gcal_event_popover_new (GcalContext *context,
+                        GcalEvent   *event)
 {
   return g_object_new (GCAL_TYPE_EVENT_POPOVER,
+                       "context", context,
                        "event", event,
                        NULL);
 }
