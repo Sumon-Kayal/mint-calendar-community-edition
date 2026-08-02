@@ -27,71 +27,68 @@ template $GcalMonthCell: Widget {
       }
     }
 
-    child: Box {
-      orientation: vertical;
+    child: Overlay overlay {
+      [overlay]
+      Box header_box {
+        valign: start;
+        spacing: 6;
+        margin-top: 6;
+        margin-bottom: 6;
+        margin-start: 6;
+        margin-end: 6;
 
-      Adw.Bin {
-        child: Box header_box {
-          spacing: 6;
-          margin-top: 6;
-          margin-bottom: 6;
-          margin-start: 6;
-          margin-end: 6;
+        Label day_label {
+          styles [
+            "day-label",
+            "numeric",
+          ]
+        }
 
-          Label day_label {
-            styles [
-              "day-label",
-              "numeric",
-            ]
-          }
-
-          Image weather_icon {
-            pixel-size: 16;
-            margin-start: 12;
-            accessible-role: presentation;
-
-            styles [
-              "dimmed",
-            ]
-          }
-
-          Label temp_label {
-            styles [
-              "dimmed",
-              "temp-label",
-            ]
-          }
-        };
-      }
-
-      Adw.Bin content_space {
-        vexpand: true;
-      }
-
-      Adw.Bin {
-        child: Button overflow_button {
-          accessible-role: toggle_button;
-          clicked => $overflow_button_clicked_cb(template) not-swapped;
-          tooltip-text: _("All Events");
-          margin-top: 1;
-          margin-start: 1;
-          margin-bottom: 2;
-          margin-end: 2;
-
-          accessibility {
-            has-popup: true;
-            labelled-by: overflow_inscription;
-          }
+        Image weather_icon {
+          pixel-size: 16;
+          margin-start: 12;
+          accessible-role: presentation;
 
           styles [
-            "flat",
-            "overflow",
+            "dimmed",
           ]
+        }
 
-          child: Inscription overflow_inscription {
+        Label temp_label {
+          styles [
+            "dimmed",
+            "temp-label",
+          ]
+        }
+      }
+
+      [overlay]
+      Button overflow_button {
+        accessible-role: toggle_button;
+        valign: end;
+        sensitive: false;
+        clicked => $overflow_button_clicked_cb(template) not-swapped;
+        tooltip-text: _("All Events");
+        margin-top: 1;
+        margin-start: 1;
+        margin-bottom: 2;
+        margin-end: 2;
+
+        accessibility {
+          has-popup: true;
+          labelled-by: overflow_inscription;
+        }
+
+        styles [
+          "flat",
+          "overflow",
+        ]
+
+        Box {
+          Inscription overflow_inscription {
             text-overflow: ellipsize_end;
-          };
-        };
+          }
+        }
       }
     };
   }

@@ -20,7 +20,6 @@
 
 #include "gcal-week-hour-bar.h"
 #include "gcal-week-view-common.h"
-#include "gcal-utils.h"
 
 #include <glib/gi18n.h>
 
@@ -29,6 +28,8 @@ struct _GcalWeekHourBar
   GtkBox              parent_instance;
 
   GtkLabel           *labels[24];
+
+  GcalContext        *context;
 };
 
 G_DEFINE_FINAL_TYPE (GcalWeekHourBar, gcal_week_hour_bar, GTK_TYPE_BOX)
@@ -36,11 +37,10 @@ G_DEFINE_FINAL_TYPE (GcalWeekHourBar, gcal_week_hour_bar, GTK_TYPE_BOX)
 static void
 update_labels (GcalWeekHourBar *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalTimeFormat time_format;
   gint i;
 
-  time_format = gcal_context_get_time_format (context);
+  time_format = gcal_context_get_time_format (self->context);
 
   for (i = 0; i < 24; i++)
     {
@@ -92,7 +92,6 @@ gcal_week_hour_bar_class_init (GcalWeekHourBarClass *klass)
 static void
 gcal_week_hour_bar_init (GcalWeekHourBar *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   gint i;
 
   g_object_set (self,
@@ -113,6 +112,15 @@ gcal_week_hour_bar_init (GcalWeekHourBar *self)
 
       self->labels[i] = GTK_LABEL (label);
     }
+}
+
+void
+gcal_week_hour_bar_set_context (GcalWeekHourBar *self,
+                                GcalContext     *context)
+{
+  g_return_if_fail (GCAL_IS_WEEK_HOUR_BAR (self));
+
+  self->context = context;
 
   g_signal_connect_object (context,
                            "notify::time-format",
