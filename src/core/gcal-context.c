@@ -163,7 +163,8 @@ gcal_context_constructed (GObject *object)
 
   G_OBJECT_CLASS (gcal_context_parent_class)->constructed (object);
 
-  self->manager = gcal_manager_new ();
+  self->manager = gcal_manager_new (self);
+  self->search_engine = gcal_search_engine_new (self);
 }
 
 static void
@@ -465,7 +466,4 @@ gcal_context_startup (GcalContext *self)
     }
 
   gcal_manager_startup (self->manager);
-
-  g_assert_nonnull (g_application_get_default ());
-  self->search_engine = gcal_search_engine_new ();
 }
