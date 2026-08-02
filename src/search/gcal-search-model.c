@@ -40,8 +40,7 @@ struct _GcalSearchModel
   GDateTime          *range_start;
   GDateTime          *range_end;
 
-  GtkMapListModel    *map_model;
-  GtkSortListModel   *sort_model;
+  GListModel         *model;
 
   GTimer             *timer;
   guint               idle_id;
@@ -74,7 +73,7 @@ check_for_search_hits_cb (gpointer user_data)
     goto stop_idle;
 
   if (g_timer_elapsed (self->timer, NULL) >= WAIT_FOR_RESULTS_MS ||
-      g_list_model_get_n_items (G_LIST_MODEL (self->sort_model)) >= MIN_RESULTS)
+      g_list_model_get_n_items (self->model) >= MIN_RESULTS)
     {
       g_task_return_boolean (task, TRUE);
       goto stop_idle;
@@ -109,6 +108,16 @@ compare_search_hits_cb (gconstpointer a,
   return gcal_search_hit_compare (hit_a, hit_b);
 }
 
+static gboolean
+search_hits_equals_cb (gconstpointer a,
+                       gconstpointer b)
+{
+  GcalSearchHit *search_hit_a = GCAL_SEARCH_HIT ((gpointer) a);
+  GcalSearchHit *search_hit_b = GCAL_SEARCH_HIT ((gpointer) b);
+
+  return gcal_search_hit_compare (search_hit_a, search_hit_b) == 0;
+}
+
 static void
 on_search_model_items_changed_cb (GListModel      *model,
                                   guint            position,
@@ -117,20 +126,6 @@ on_search_model_items_changed_cb (GListModel      *model,
                                   GcalSearchModel *self)
 {
   g_list_model_items_changed (G_LIST_MODEL (self), position, removed, added);
-}
-
-static gpointer
-event_to_search_hit_func (gpointer item,
-                          gpointer user_data)
-{
-  g_autoptr (GcalSearchHitEvent) search_hit = NULL;
-
-  g_assert (GCAL_IS_EVENT (item));
-
-  search_hit = gcal_search_hit_event_new (item);
-  g_object_unref (item);
-
-  return g_steal_pointer (&search_hit);
 }
 
 
@@ -147,23 +142,53 @@ gcal_search_model_get_range (GcalTimelineSubscriber *subscriber)
 }
 
 static void
-gcal_search_model_set_model (GcalTimelineSubscriber *subscriber,
-                             GListModel             *model)
+gcal_search_model_add_event (GcalTimelineSubscriber *subscriber,
+                             GcalEvent              *event)
 {
-  GcalSearchModel *self = GCAL_SEARCH_MODEL (subscriber);
+  g_autoptr (GcalSearchHitEvent) search_hit = NULL;
+  GcalSearchModel *self;
+  gboolean found;
 
-  GCAL_ENTRY;
+  self = GCAL_SEARCH_MODEL (subscriber);
 
-  gtk_map_list_model_set_model (self->map_model, model);
+  GCAL_TRACE_MSG ("Adding search hit '%s'", gcal_event_get_summary (event));
 
-  GCAL_EXIT;
+  search_hit = gcal_search_hit_event_new (event);
+
+  found = g_list_store_find_with_equal_func (G_LIST_STORE (self->model),
+                                             search_hit,
+                                             search_hits_equals_cb,
+                                             NULL);
+
+  if (found)
+    return;
+
+  g_list_store_insert_sorted (G_LIST_STORE (self->model),
+                              search_hit,
+                              compare_search_hits_cb,
+                              self);
+}
+
+static void
+gcal_search_model_update_event (GcalTimelineSubscriber *subscriber,
+                                GcalEvent              *old_event,
+                                GcalEvent              *event)
+{
+}
+
+static void
+gcal_search_model_remove_event (GcalTimelineSubscriber *subscriber,
+                                GcalEvent              *event)
+{
 }
 
 static void
 gcal_timeline_subscriber_interface_init (GcalTimelineSubscriberInterface *iface)
 {
   iface->get_range = gcal_search_model_get_range;
-  iface->set_model = gcal_search_model_set_model;
+  iface->add_event = gcal_search_model_add_event;
+  iface->update_event = gcal_search_model_update_event;
+  iface->remove_event = gcal_search_model_remove_event;
 }
 
 
@@ -181,8 +206,7 @@ static guint
 gcal_search_model_get_n_items (GListModel *model)
 {
   GcalSearchModel *self = (GcalSearchModel *)model;
-  GListModel *sort_model = (GListModel *)self->sort_model;
-  return g_list_model_get_n_items (sort_model);
+  return g_list_model_get_n_items (self->model);
 }
 
 static gpointer
@@ -190,8 +214,7 @@ gcal_search_model_get_item (GListModel *model,
                             guint       position)
 {
   GcalSearchModel *self = (GcalSearchModel *)model;
-  GListModel *sort_model = (GListModel *)self->sort_model;
-  return g_list_model_get_item (sort_model, position);
+  return g_list_model_get_item (self->model, position);
 }
 
 static void
@@ -220,8 +243,7 @@ gcal_search_model_finalize (GObject *object)
   gcal_clear_date_time (&self->range_start);
   gcal_clear_date_time (&self->range_end);
   g_clear_object (&self->cancellable);
-  g_clear_object (&self->sort_model);
-  g_clear_object (&self->map_model);
+  g_clear_object (&self->model);
 
   G_OBJECT_CLASS (gcal_search_model_parent_class)->finalize (object);
 }
@@ -237,10 +259,8 @@ gcal_search_model_class_init (GcalSearchModelClass *klass)
 static void
 gcal_search_model_init (GcalSearchModel *self)
 {
-  self->map_model = gtk_map_list_model_new (NULL, event_to_search_hit_func, NULL, NULL);
-  self->sort_model = gtk_sort_list_model_new (G_LIST_MODEL (g_object_ref (self->map_model)),
-                                              GTK_SORTER (gtk_custom_sorter_new (compare_search_hits_cb, NULL, NULL)));
-  g_signal_connect (self->sort_model, "items-changed", G_CALLBACK (on_search_model_items_changed_cb), self);
+  self->model = (GListModel*) g_list_store_new (GCAL_TYPE_SEARCH_HIT);
+  g_signal_connect (self->model, "items-changed", G_CALLBACK (on_search_model_items_changed_cb), self);
 }
 
 GcalSearchModel *
