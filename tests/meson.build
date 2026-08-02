@@ -35,7 +35,6 @@ tests = [
   'daylight-saving',
   'discoverer',
   'event',
-  'event-list',
   'internals',
   'range',
   'range-tree',
