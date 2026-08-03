@@ -1,6 +1,6 @@
-/* gcal-alarm-row.h
+/* gcal-schedule-section.h
  *
- * Copyright 2019 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
+ * Copyright 2020 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,16 +21,24 @@
 #pragma once
 
 #include <adwaita.h>
-#include <libecal/libecal.h>
+#include <gtk/gtk.h>
+
+#include "gcal-enums.h"
+#include "gcal-event.h"
+#include "gcal-recurrence.h"
 
 G_BEGIN_DECLS
 
-#define GCAL_TYPE_ALARM_ROW (gcal_alarm_row_get_type())
+#define GCAL_TYPE_SCHEDULE_SECTION (gcal_schedule_section_get_type())
+G_DECLARE_FINAL_TYPE (GcalScheduleSection, gcal_schedule_section, GCAL, SCHEDULE_SECTION, GtkBox)
 
-G_DECLARE_FINAL_TYPE (GcalAlarmRow, gcal_alarm_row, GCAL, ALARM_ROW, AdwActionRow)
+gboolean             gcal_schedule_section_recurrence_changed    (GcalScheduleSection *self);
 
-GtkWidget*           gcal_alarm_row_new                          (ECalComponentAlarm *alarm);
+gboolean             gcal_schedule_section_day_changed           (GcalScheduleSection *self);
 
-ECalComponentAlarm*  gcal_alarm_row_get_alarm                    (GcalAlarmRow       *self);
+
+/* Tests */
+
+void gcal_schedule_section_add_tests (void);
 
 G_END_DECLS

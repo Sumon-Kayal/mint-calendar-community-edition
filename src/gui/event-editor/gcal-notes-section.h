@@ -1,6 +1,6 @@
-/* gcal-alarm-row.h
+/* gcal-notes-section.h
  *
- * Copyright 2019 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
+ * Copyright 2020 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,16 +21,10 @@
 #pragma once
 
 #include <adwaita.h>
-#include <libecal/libecal.h>
 
 G_BEGIN_DECLS
 
-#define GCAL_TYPE_ALARM_ROW (gcal_alarm_row_get_type())
-
-G_DECLARE_FINAL_TYPE (GcalAlarmRow, gcal_alarm_row, GCAL, ALARM_ROW, AdwActionRow)
-
-GtkWidget*           gcal_alarm_row_new                          (ECalComponentAlarm *alarm);
-
-ECalComponentAlarm*  gcal_alarm_row_get_alarm                    (GcalAlarmRow       *self);
+#define GCAL_TYPE_NOTES_SECTION (gcal_notes_section_get_type())
+G_DECLARE_FINAL_TYPE (GcalNotesSection, gcal_notes_section, GCAL, NOTES_SECTION, AdwPreferencesRow)
 
 G_END_DECLS

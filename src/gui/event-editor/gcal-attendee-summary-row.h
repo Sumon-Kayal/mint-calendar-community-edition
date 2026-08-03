@@ -1,6 +1,6 @@
-/* gcal-alarm-row.h
+/* gcal-attendee-summary-row.c
  *
- * Copyright 2019 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
+ * Copyright (C) 2025 Alen Galinec <mind.on.warp@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,23 +14,19 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#pragma once
+#ifndef GCAL_ATTENDEE_SUMMARY_ROW_H
+#define GCAL_ATTENDEE_SUMMARY_ROW_H
 
 #include <adwaita.h>
-#include <libecal/libecal.h>
+#include <glib.h>
 
 G_BEGIN_DECLS
 
-#define GCAL_TYPE_ALARM_ROW (gcal_alarm_row_get_type())
-
-G_DECLARE_FINAL_TYPE (GcalAlarmRow, gcal_alarm_row, GCAL, ALARM_ROW, AdwActionRow)
-
-GtkWidget*           gcal_alarm_row_new                          (ECalComponentAlarm *alarm);
-
-ECalComponentAlarm*  gcal_alarm_row_get_alarm                    (GcalAlarmRow       *self);
+#define GCAL_TYPE_ATTENDEE_SUMMARY_ROW (gcal_attendee_summary_row_get_type ())
+G_DECLARE_FINAL_TYPE (GcalAttendeeSummaryRow, gcal_attendee_summary_row, GCAL, ATTENDEE_SUMMARY_ROW, AdwActionRow)
 
 G_END_DECLS
+
+#endif
