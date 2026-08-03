@@ -37,6 +37,8 @@ struct _GcalCalendarsPage
   AdwToastOverlay    *toast_overlay;
 
   AdwToast           *toast;
+
+  GcalContext        *context;
 };
 
 static void          gcal_calendar_management_page_iface_init    (GcalCalendarManagementPageInterface *iface);
@@ -48,6 +50,13 @@ static void          on_calendar_color_changed_cb                (GcalCalendar  
 G_DEFINE_TYPE_WITH_CODE (GcalCalendarsPage, gcal_calendars_page, ADW_TYPE_NAVIGATION_PAGE,
                          G_IMPLEMENT_INTERFACE (GCAL_TYPE_CALENDAR_MANAGEMENT_PAGE,
                                                 gcal_calendar_management_page_iface_init))
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
 
 
 /*
@@ -185,29 +194,6 @@ delete_calendar (GcalCalendarsPage *self,
     }
 }
 
-static void
-clear_toast_and_delete_calendar (GcalCalendarsPage *self,
-                                 AdwToast          *toast)
-{
-  GcalCalendar *calendar;
-
-  GCAL_ENTRY;
-
-  calendar = g_object_get_data (G_OBJECT (toast), "calendar");
-
-  if (!calendar)
-    {
-      g_assert (self->toast == NULL);
-      GCAL_RETURN ();
-    }
-
-  delete_calendar (self, calendar);
-
-  g_clear_object (&self->toast);
-
-  GCAL_EXIT;
-}
-
 
 /*
  * Callbacks
@@ -314,7 +300,23 @@ static void
 on_toast_dismissed_cb (AdwToast          *toast,
                        GcalCalendarsPage *self)
 {
-  clear_toast_and_delete_calendar (self, toast);
+  GcalCalendar *calendar;
+
+  GCAL_ENTRY;
+
+  calendar = g_object_get_data (G_OBJECT (toast), "calendar");
+
+  if (!calendar)
+    {
+      g_assert (self->toast == NULL);
+      GCAL_RETURN ();
+    }
+
+  delete_calendar (self, calendar);
+
+  g_clear_object (&self->toast);
+
+  GCAL_EXIT;
 }
 
 
@@ -370,23 +372,6 @@ gcal_calendar_management_page_iface_init (GcalCalendarManagementPageInterface *i
   iface->activate = gcal_calendars_page_activate;
 }
 
-
-/*
- * GtkWidget overrides
- */
-
-static void
-gcal_calendars_page_unmap (GtkWidget *widget)
-{
-  GcalCalendarsPage *self = GCAL_CALENDARS_PAGE (widget);
-
-  if (self->toast)
-    clear_toast_and_delete_calendar (self, self->toast);
-
-  GTK_WIDGET_CLASS (gcal_calendars_page_parent_class)->unmap (widget);
-}
-
-
 /*
  * GObject overrides
  */
@@ -397,8 +382,62 @@ gcal_calendars_page_finalize (GObject *object)
   GcalCalendarsPage *self = (GcalCalendarsPage *)object;
 
   g_clear_object (&self->toast);
+  g_clear_object (&self->context);
 
   G_OBJECT_CLASS (gcal_calendars_page_parent_class)->finalize (object);
+}
+
+static void
+gcal_calendars_page_get_property (GObject    *object,
+                                  guint       prop_id,
+                                  GValue     *value,
+                                  GParamSpec *pspec)
+{
+  GcalCalendarsPage *self = GCAL_CALENDARS_PAGE (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_calendars_page_set_property (GObject      *object,
+                                  guint         prop_id,
+                                  const GValue *value,
+                                  GParamSpec   *pspec)
+{
+  GcalCalendarsPage *self = GCAL_CALENDARS_PAGE (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+        {
+          g_autoptr (GList) calendars = NULL;
+          GcalManager *manager;
+          GList *l;
+
+          self->context = g_value_dup_object (value);
+          g_assert (self->context != NULL);
+
+          manager = gcal_context_get_manager (self->context);
+          g_signal_connect_object (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self, 0);
+          g_signal_connect_object (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self, 0);
+
+          calendars = gcal_manager_get_calendars (manager);
+          for (l = calendars; l; l = l->next)
+              add_calendar (self, l->data);
+        }
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
 }
 
 static void
@@ -408,8 +447,10 @@ gcal_calendars_page_class_init (GcalCalendarsPageClass *klass)
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
 
   object_class->finalize = gcal_calendars_page_finalize;
+  object_class->get_property = gcal_calendars_page_get_property;
+  object_class->set_property = gcal_calendars_page_set_property;
 
-  widget_class->unmap = gcal_calendars_page_unmap;
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/calendar-management/gcal-calendars-page.ui");
 
@@ -423,22 +464,10 @@ gcal_calendars_page_class_init (GcalCalendarsPageClass *klass)
 static void
 gcal_calendars_page_init (GcalCalendarsPage *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  GcalManager *manager = gcal_context_get_manager (context);
-  g_autoptr (GList) calendars = NULL;
-  GList *l;
-
   gtk_widget_init_template (GTK_WIDGET (self));
 
   gtk_list_box_set_sort_func (self->listbox,
                               (GtkListBoxSortFunc) listbox_sort_func,
                               NULL,
                               NULL);
-
-  g_signal_connect_object (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self, 0);
-  g_signal_connect_object (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self, 0);
-
-  calendars = gcal_manager_get_calendars (manager);
-  for (l = calendars; l; l = l->next)
-      add_calendar (self, l->data);
 }

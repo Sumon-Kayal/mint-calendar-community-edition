@@ -7,10 +7,14 @@ template $GcalAttendeeRow: Adw.ActionRow {
   }
 
   [suffix]
-  Label role {
-    styles [
-      "dimmed",
-    ]
+  Box suffixes {
+    orientation: horizontal;
+
+    Label role {
+      styles [
+        "dimmed",
+      ]
+    }
   }
 }
 

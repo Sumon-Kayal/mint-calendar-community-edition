@@ -32,10 +32,7 @@ G_DECLARE_FINAL_TYPE (GcalEventEditorDialog, gcal_event_editor_dialog, GCAL, EVE
 
 GtkWidget*           gcal_event_editor_dialog_new                (void);
 
-GcalEvent           *gcal_event_editor_dialog_get_event          (GcalEventEditorDialog *self);
-
-void                 gcal_event_editor_dialog_present_event      (GcalEventEditorDialog *self,
-                                                                  GtkWidget             *parent,
+void                 gcal_event_editor_dialog_set_event          (GcalEventEditorDialog *self,
                                                                   GcalEvent             *event,
                                                                   gboolean               new_event);
 

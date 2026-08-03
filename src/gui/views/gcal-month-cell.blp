@@ -27,7 +27,8 @@ template $GcalMonthCell: Widget {
       }
     }
 
-    child: Overlay {
+    child: Overlay overlay {
+      [overlay]
       Box header_box {
         valign: start;
         spacing: 6;
@@ -89,6 +90,6 @@ template $GcalMonthCell: Widget {
           }
         }
       }
-    }
+    };
   }
 }

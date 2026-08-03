@@ -23,7 +23,9 @@
 #include <libintl.h>
 
 #include "gcal-attendee-summary-row.h"
+#include "gcal-context.h"
 #include "gcal-event-attendee.h"
+#include "gcal-event-editor-section.h"
 #include "gcal-event-organizer.h"
 #include "gcal-event.h"
 #include "gcal-organizer-row.h"
@@ -31,8 +33,10 @@
 
 struct _GcalAttendeesSection
 {
-  GcalEventEditorSection  parent_instance;
+  GtkBox parent_instance;
 
+  GcalContext         *context;
+  GcalEvent           *event;
   GcalEventOrganizer  *organizer;
 
   AdwActionRow        *summary_row;
@@ -40,11 +44,15 @@ struct _GcalAttendeesSection
   GListModel          *attendees;
 };
 
-G_DEFINE_FINAL_TYPE (GcalAttendeesSection, gcal_attendees_section, GCAL_TYPE_EVENT_EDITOR_SECTION)
+static void          gcal_event_editor_section_init_iface        (GcalEventEditorSectionInterface *iface);
+
+G_DEFINE_FINAL_TYPE_WITH_CODE (GcalAttendeesSection, gcal_attendees_section, GTK_TYPE_BOX,
+                               G_IMPLEMENT_INTERFACE (GCAL_TYPE_EVENT_EDITOR_SECTION, gcal_event_editor_section_init_iface))
 
 enum
 {
   PROP_0,
+  PROP_CONTEXT,
   PROP_ATTENDEES,
   PROP_ORGANIZER,
   N_PROPS
@@ -52,36 +60,51 @@ enum
 
 static GParamSpec *properties[N_PROPS] = { NULL, };
 
-
-/*
- * GcalEventEditorSection overrides
- */
-
 static void
-gcal_attendees_section_event_set_cb (GcalEventEditorSection *section,
-                                     GcalEvent              *event)
+gcal_attendees_section_set_event (GcalEventEditorSection *section,
+                                  GcalEvent              *event,
+                                  GcalEventEditorFlags    flags)
 {
   GcalAttendeesSection *self = GCAL_ATTENDEES_SECTION (section);
 
-  if (event)
-    {
-      self->organizer = gcal_event_get_organizer (event);
-      self->attendees = gcal_event_get_attendees (event);
-    }
-  else
-    {
-      self->organizer = NULL;
-      self->attendees = NULL;
-    }
+  if (event == self->event)
+    return;
+
+  g_set_object (&self->event, event);
+
+  if (self->event == NULL)
+    return;
+
+  /* set organizer */
+  self->organizer = gcal_event_get_organizer (self->event);
+
+  /* set attendees and summarize attendance status */
+  self->attendees = gcal_event_get_attendees (self->event);
 
   g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_ATTENDEES]);
   g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_ORGANIZER]);
 }
 
+static void
+gcal_attendees_section_apply (GcalEventEditorSection *section)
+{
+  /* read-only */
+}
 
-/*
- * GObject overrides
- */
+static gboolean
+gcal_attendees_section_changed (GcalEventEditorSection *section)
+{
+  /* This section is read-only for now */
+  return FALSE;
+}
+
+static void
+gcal_event_editor_section_init_iface (GcalEventEditorSectionInterface *iface)
+{
+  iface->set_event = gcal_attendees_section_set_event;
+  iface->apply = gcal_attendees_section_apply;
+  iface->changed = gcal_attendees_section_changed;
+}
 
 static void
 gcal_attendees_section_get_property (GObject *object,
@@ -93,6 +116,10 @@ gcal_attendees_section_get_property (GObject *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
     case PROP_ATTENDEES:
       g_value_set_object (value, self->attendees);
       break;
@@ -116,6 +143,11 @@ gcal_attendees_section_set_property (GObject *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+      break;
+
     case PROP_ORGANIZER:
       self->organizer = g_value_get_object (value);
       break;
@@ -129,6 +161,9 @@ static void
 gcal_attendees_section_finalize (GObject *object)
 {
   GcalAttendeesSection *self = (GcalAttendeesSection *) object;
+
+  g_clear_object (&self->context);
+  g_clear_object (&self->event);
 
   self->attendees = NULL; /* not owned */
 
@@ -146,7 +181,6 @@ gcal_attendees_section_class_init (GcalAttendeesSectionClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
-  GcalEventEditorSectionClass *section_class = GCAL_EVENT_EDITOR_SECTION_CLASS (klass);
 
   g_type_ensure (GCAL_TYPE_ORGANIZER_ROW);
   g_type_ensure (GCAL_TYPE_ATTENDEE_SUMMARY_ROW);
@@ -155,7 +189,15 @@ gcal_attendees_section_class_init (GcalAttendeesSectionClass *klass)
   object_class->get_property = gcal_attendees_section_get_property;
   object_class->set_property = gcal_attendees_section_set_property;
 
-  section_class->event_set_cb = gcal_attendees_section_event_set_cb;
+  /**
+   * GcalAttendeesSection:context:
+   *
+   * The #GcalContext instance. Required by the interface.
+   */
+  properties[PROP_CONTEXT] =
+    g_param_spec_object ("context", NULL, NULL,
+                         GCAL_TYPE_CONTEXT,
+                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   /**
    * GcalAttendeesSection:attendees:

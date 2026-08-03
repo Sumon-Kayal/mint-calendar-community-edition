@@ -20,102 +20,122 @@
 
 #define G_LOG_DOMAIN "GcalNotesSection"
 
+#include "gcal-context.h"
 #include "gcal-debug.h"
+#include "gcal-event-editor-section.h"
 #include "gcal-notes-section.h"
 
 struct _GcalNotesSection
 {
-  GcalEventEditorSection  parent;
+  AdwPreferencesRow   parent;
 
-  GtkTextView            *notes_text;
-  GtkLabel               *placeholder;
+  GtkTextView        *notes_text;
+
+  GcalContext        *context;
+  GcalEvent          *event;
 };
 
-G_DEFINE_FINAL_TYPE (GcalNotesSection, gcal_notes_section, GCAL_TYPE_EVENT_EDITOR_SECTION)
+static void          gcal_event_editor_section_iface_init        (GcalEventEditorSectionInterface *iface);
+
+G_DEFINE_TYPE_WITH_CODE (GcalNotesSection, gcal_notes_section, ADW_TYPE_PREFERENCES_ROW,
+                         G_IMPLEMENT_INTERFACE (GCAL_TYPE_EVENT_EDITOR_SECTION, gcal_event_editor_section_iface_init))
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
 
 /*
  * Callbacks
  */
 
 static void
-on_notes_text_changed_cb (GcalNotesSection *self)
+on_notes_text_state_flags_changed_cb (GtkTextView      *text_view,
+                                      GtkStateFlags     previous_flags,
+                                      GcalNotesSection *self)
 {
-  g_autofree char *text = NULL;
-  GtkTextIter start, end;
-  GtkTextBuffer *buffer;
-  GcalEvent *event;
-
-  event = gcal_event_editor_section_get_event (GCAL_EVENT_EDITOR_SECTION (self));
-
-  buffer = gtk_text_view_get_buffer (self->notes_text);
-  gtk_text_buffer_get_bounds (buffer, &start, &end);
-  text = gtk_text_buffer_get_text (buffer, &start, &end, TRUE);
-
-  gcal_event_set_description (event, text);
-}
-
-static void
-on_row_state_flags_changed_cb (AdwPreferencesRow *row,
-                               GtkStateFlags      previous_flags)
-{
-  GtkStateFlags flags = gtk_widget_get_state_flags (GTK_WIDGET (row));
+  GtkStateFlags flags = gtk_widget_get_state_flags (GTK_WIDGET (text_view));
 
   if (flags & GTK_STATE_FLAG_FOCUS_WITHIN)
-    gtk_widget_add_css_class (GTK_WIDGET (row), "focused");
+    gtk_widget_add_css_class (GTK_WIDGET (self), "focused");
   else
-    gtk_widget_remove_css_class (GTK_WIDGET (row), "focused");
-}
-
-static gboolean
-empty_string (gpointer     user_data,
-              const gchar *text)
-{
-  return g_utf8_strlen (text, -1) == 0;
-}
-
-static void
-on_row_pressed (GtkGestureClick *gesture,
-                gint             n_press,
-                gdouble          x,
-                gdouble          y,
-                GtkWidget       *text_view)
-{
-  GtkWidget *row;
-
-  g_assert (GTK_IS_TEXT_VIEW (text_view));
-
-  row = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
-
-  if (gtk_widget_contains (row, x, y))
-    gtk_widget_grab_focus (text_view);
-
-  gtk_gesture_set_state (GTK_GESTURE (gesture), GTK_EVENT_SEQUENCE_NONE);
+    gtk_widget_remove_css_class (GTK_WIDGET (self), "focused");
 }
 
 
 /*
- * GcalEventEditorSection overrides
+ * GcalEventEditorSection interface
  */
 
 static void
-gcal_notes_section_event_set_cb (GcalEventEditorSection *section,
-                                 GcalEvent              *event)
+gcal_notes_section_set_event (GcalEventEditorSection *section,
+                              GcalEvent              *event,
+                              GcalEventEditorFlags    flags)
 {
-  GcalNotesSection *self = GCAL_NOTES_SECTION (section);
-  GtkTextIter start, end;
+  GcalNotesSection *self;
   GtkTextBuffer *buffer;
 
+  GCAL_ENTRY;
+
+  self = GCAL_NOTES_SECTION (section);
+
+  g_set_object (&self->event, event);
+
+  if (!event)
+    GCAL_RETURN ();
+
   buffer = gtk_text_view_get_buffer (self->notes_text);
-  gtk_text_buffer_get_bounds (buffer, &start, &end);
+  gtk_text_buffer_set_text (buffer, gcal_event_get_description (event), -1);
 
-  g_signal_handlers_block_by_func (buffer, on_notes_text_changed_cb, self);
+  GCAL_EXIT;
+}
 
-  if (event)
-    gtk_text_buffer_set_text (buffer, gcal_event_get_description (event), -1);
-  else
-    gtk_text_buffer_delete (buffer, &start, &end);
+static void
+gcal_notes_section_apply (GcalEventEditorSection *section)
+{
+  g_autofree gchar *note_text = NULL;
+  GcalNotesSection *self;
+  GtkTextBuffer *buffer;
 
-  g_signal_handlers_unblock_by_func (buffer, on_notes_text_changed_cb, self);
+  GCAL_ENTRY;
+
+  self = GCAL_NOTES_SECTION (section);
+
+  /* Update description */
+  buffer = gtk_text_view_get_buffer (self->notes_text);
+  g_object_get (G_OBJECT (buffer), "text", &note_text, NULL);
+
+  gcal_event_set_description (self->event, note_text);
+
+  GCAL_EXIT;
+}
+
+static gboolean
+gcal_notes_section_changed (GcalEventEditorSection *section)
+{
+  g_autofree gchar *note_text = NULL;
+  GcalNotesSection *self;
+  GtkTextBuffer *buffer;
+
+  GCAL_ENTRY;
+
+  self = GCAL_NOTES_SECTION (section);
+
+  /* Update description */
+  buffer = gtk_text_view_get_buffer (self->notes_text);
+  g_object_get (G_OBJECT (buffer), "text", &note_text, NULL);
+
+  GCAL_RETURN (g_strcmp0 (gcal_event_get_description (self->event), note_text) != 0);
+}
+
+static void
+gcal_event_editor_section_iface_init (GcalEventEditorSectionInterface *iface)
+{
+  iface->set_event = gcal_notes_section_set_event;
+  iface->apply = gcal_notes_section_apply;
+  iface->changed = gcal_notes_section_changed;
 }
 
 
@@ -124,32 +144,78 @@ gcal_notes_section_event_set_cb (GcalEventEditorSection *section,
  */
 
 static void
+gcal_notes_section_finalize (GObject *object)
+{
+  GcalNotesSection *self = (GcalNotesSection *)object;
+
+  g_clear_object (&self->context);
+  g_clear_object (&self->event);
+
+  G_OBJECT_CLASS (gcal_notes_section_parent_class)->finalize (object);
+}
+
+static void
+gcal_notes_section_get_property (GObject    *object,
+                                 guint       prop_id,
+                                 GValue     *value,
+                                 GParamSpec *pspec)
+{
+  GcalNotesSection *self = GCAL_NOTES_SECTION (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_notes_section_set_property (GObject      *object,
+                                 guint         prop_id,
+                                 const GValue *value,
+                                 GParamSpec   *pspec)
+{
+  GcalNotesSection *self = GCAL_NOTES_SECTION (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
 gcal_notes_section_class_init (GcalNotesSectionClass *klass)
 {
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
-  GcalEventEditorSectionClass *section_class = GCAL_EVENT_EDITOR_SECTION_CLASS (klass);
 
-  section_class->event_set_cb = gcal_notes_section_event_set_cb;
+  object_class->finalize = gcal_notes_section_finalize;
+  object_class->get_property = gcal_notes_section_get_property;
+  object_class->set_property = gcal_notes_section_set_property;
+
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/event-editor/gcal-notes-section.ui");
 
   gtk_widget_class_bind_template_child (widget_class, GcalNotesSection, notes_text);
-  gtk_widget_class_bind_template_child (widget_class, GcalNotesSection, placeholder);
 
-  gtk_widget_class_bind_template_callback (widget_class, empty_string);
-  gtk_widget_class_bind_template_callback (widget_class, on_row_pressed);
-  gtk_widget_class_bind_template_callback (widget_class, on_row_state_flags_changed_cb);
+  gtk_widget_class_bind_template_callback (widget_class, on_notes_text_state_flags_changed_cb);
 }
 
 static void
 gcal_notes_section_init (GcalNotesSection *self)
 {
-  GtkTextBuffer *buffer;
-
   gtk_widget_init_template (GTK_WIDGET (self));
-
-  buffer = gtk_text_view_get_buffer (self->notes_text);
-  g_signal_connect_object (buffer, "notify::text", G_CALLBACK (on_notes_text_changed_cb), self, G_CONNECT_SWAPPED);
 
   gtk_widget_remove_css_class (GTK_WIDGET (self->notes_text), "view");
 }

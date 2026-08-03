@@ -20,7 +20,9 @@
 
 #define G_LOG_DOMAIN "GcalSummarySection"
 
+#include "gcal-context.h"
 #include "gcal-debug.h"
+#include "gcal-event-editor-section.h"
 #include "gcal-summary-section.h"
 #include "gcal-utils.h"
 
@@ -28,108 +30,105 @@
 
 struct _GcalSummarySection
 {
-  GcalEventEditorSection  parent;
+  AdwBin              parent;
 
-  AdwEntryRow            *summary_entry;
-  AdwEntryRow            *location_entry;
+  AdwEntryRow        *summary_entry;
+  AdwEntryRow        *location_entry;
+
+  GcalContext        *context;
+  GcalEvent          *event;
 };
 
 
-G_DEFINE_FINAL_TYPE (GcalSummarySection, gcal_summary_section, GCAL_TYPE_EVENT_EDITOR_SECTION)
+static void          gcal_event_editor_section_iface_init        (GcalEventEditorSectionInterface *iface);
+
+G_DEFINE_TYPE_WITH_CODE (GcalSummarySection, gcal_summary_section, ADW_TYPE_BIN,
+                         G_IMPLEMENT_INTERFACE (GCAL_TYPE_EVENT_EDITOR_SECTION, gcal_event_editor_section_iface_init))
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
 
 /*
- * Callbacks
+ * GcalEventEditorSection interface
  */
 
 static void
-on_summary_entry_text_changed_cb (GcalSummarySection *self)
+gcal_reminders_section_set_event (GcalEventEditorSection *section,
+                                  GcalEvent              *event,
+                                  GcalEventEditorFlags    flags)
 {
-  gboolean should_request_validation;
-  const char *text, *summary;
-  GtkWidget *dialog;
-  GcalEvent *event;
+  GcalSummarySection *self;
 
-  event = gcal_event_editor_section_get_event (GCAL_EVENT_EDITOR_SECTION (self));
-  summary = gcal_event_get_summary (event);
-  text = gtk_editable_get_text (GTK_EDITABLE (self->summary_entry));
+  GCAL_ENTRY;
 
-  should_request_validation = gcal_is_valid_event_name (text) != gcal_is_valid_event_name (summary);
+  self = GCAL_SUMMARY_SECTION (section);
 
-  if (gcal_is_valid_event_name (text))
-    gtk_widget_remove_css_class (GTK_WIDGET (self->summary_entry), "error");
-  else
-    gtk_widget_add_css_class (GTK_WIDGET (self->summary_entry), "error");
+  g_set_object (&self->event, event);
 
-  gcal_event_set_summary (event, text);
+  if (!event)
+    GCAL_RETURN ();
 
-  dialog = gcal_event_editor_section_get_dialog (GCAL_EVENT_EDITOR_SECTION (self));
-  if (should_request_validation)
-    g_signal_emit_by_name (dialog, "validation-requested");
-}
+  gtk_editable_set_text (GTK_EDITABLE (self->summary_entry), gcal_event_get_summary (event));
+  gtk_editable_set_text (GTK_EDITABLE (self->location_entry), gcal_event_get_location (event));
 
-static void
-on_location_entry_changed_cb (GcalSummarySection *self)
-{
-  const char *text = gtk_editable_get_text (GTK_EDITABLE (self->location_entry));
-  GcalEvent *event;
-
-  event = gcal_event_editor_section_get_event (GCAL_EVENT_EDITOR_SECTION (self));
-
-  gcal_event_set_location (event, text);
-}
-
-
-/*
- * GcalEventEditorSection overrides
- */
-
-static void
-gcal_summary_section_event_set_cb (GcalEventEditorSection *section,
-                                GcalEvent              *event)
-{
-  GcalSummarySection *self = GCAL_SUMMARY_SECTION (section);
-
-  g_signal_handlers_block_by_func (self->summary_entry, on_summary_entry_text_changed_cb, self);
-  g_signal_handlers_block_by_func (self->location_entry, on_location_entry_changed_cb, self);
-
-  if (event)
-    {
-      gtk_editable_set_text (GTK_EDITABLE (self->summary_entry), gcal_event_get_summary (event));
-      gtk_editable_set_text (GTK_EDITABLE (self->location_entry), gcal_event_get_location (event));
-    }
-  else
-    {
-      gtk_editable_delete_text (GTK_EDITABLE (self->summary_entry), 0, -1);
-      gtk_editable_delete_text (GTK_EDITABLE (self->location_entry), 0, -1);
-    }
-
-  g_signal_handlers_unblock_by_func (self->summary_entry, on_summary_entry_text_changed_cb, self);
-  g_signal_handlers_unblock_by_func (self->location_entry, on_location_entry_changed_cb, self);
+  gtk_widget_grab_focus (GTK_WIDGET (self->summary_entry));
 
   gtk_widget_remove_css_class (GTK_WIDGET (self->summary_entry), "error");
+
+  GCAL_EXIT;
 }
 
+static void
+on_summary_entry_text_changed_cb (AdwEntryRow *entry_row)
+{
+  if (gcal_is_valid_event_name (gtk_editable_get_text (GTK_EDITABLE (entry_row))))
+    gtk_widget_remove_css_class (GTK_WIDGET (entry_row), "error");
+  else
+    gtk_widget_add_css_class (GTK_WIDGET (entry_row), "error");
+}
 
-/*
- * GtkWidget overrides
- */
+static void
+gcal_reminders_section_apply (GcalEventEditorSection *section)
+{
+  GcalSummarySection *self;
+
+  GCAL_ENTRY;
+
+  self = GCAL_SUMMARY_SECTION (section);
+
+  gcal_event_set_summary (self->event, gtk_editable_get_text (GTK_EDITABLE (self->summary_entry)));
+  gcal_event_set_location (self->event, gtk_editable_get_text (GTK_EDITABLE (self->location_entry)));
+
+  GCAL_EXIT;
+}
 
 static gboolean
-gcal_summary_section_grab_focus (GtkWidget *widget)
+gcal_reminders_section_changed (GcalEventEditorSection *section)
 {
-  GcalSummarySection *self = GCAL_SUMMARY_SECTION (widget);
+  GcalSummarySection *self;
+  const gchar *event_location;
+  const gchar *event_summary;
 
-  return gtk_widget_grab_focus (GTK_WIDGET (self->summary_entry));
+  GCAL_ENTRY;
+
+  self = GCAL_SUMMARY_SECTION (section);
+  event_summary = gcal_event_get_summary (self->event);
+  event_location = gcal_event_get_location (self->event);
+
+  GCAL_RETURN (g_strcmp0 (event_summary, gtk_editable_get_text (GTK_EDITABLE (self->summary_entry))) != 0 ||
+               g_strcmp0 (event_location, gtk_editable_get_text (GTK_EDITABLE (self->location_entry))) != 0);
 }
 
 static void
-gcal_summary_section_unmap (GtkWidget *widget)
+gcal_event_editor_section_iface_init (GcalEventEditorSectionInterface *iface)
 {
-  GcalSummarySection *self = GCAL_SUMMARY_SECTION (widget);
-
-  gtk_widget_remove_css_class (GTK_WIDGET (self->summary_entry), "error");
-
-  GTK_WIDGET_CLASS (gcal_summary_section_parent_class)->unmap (widget);
+  iface->set_event = gcal_reminders_section_set_event;
+  iface->apply = gcal_reminders_section_apply;
+  iface->changed = gcal_reminders_section_changed;
 }
 
 
@@ -138,15 +137,66 @@ gcal_summary_section_unmap (GtkWidget *widget)
  */
 
 static void
+gcal_summary_section_finalize (GObject *object)
+{
+  GcalSummarySection *self = (GcalSummarySection *)object;
+
+  g_clear_object (&self->context);
+  g_clear_object (&self->event);
+
+  G_OBJECT_CLASS (gcal_summary_section_parent_class)->finalize (object);
+}
+
+static void
+gcal_summary_section_get_property (GObject    *object,
+                                   guint       prop_id,
+                                   GValue     *value,
+                                   GParamSpec *pspec)
+{
+  GcalSummarySection *self = GCAL_SUMMARY_SECTION (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_summary_section_set_property (GObject      *object,
+                                   guint         prop_id,
+                                   const GValue *value,
+                                   GParamSpec   *pspec)
+{
+  GcalSummarySection *self = GCAL_SUMMARY_SECTION (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
 gcal_summary_section_class_init (GcalSummarySectionClass *klass)
 {
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
-  GcalEventEditorSectionClass *section_class = GCAL_EVENT_EDITOR_SECTION_CLASS (klass);
 
-  widget_class->grab_focus = gcal_summary_section_grab_focus;
-  widget_class->unmap = gcal_summary_section_unmap;
+  object_class->finalize = gcal_summary_section_finalize;
+  object_class->get_property = gcal_summary_section_get_property;
+  object_class->set_property = gcal_summary_section_set_property;
 
-  section_class->event_set_cb = gcal_summary_section_event_set_cb;
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/event-editor/gcal-summary-section.ui");
 
@@ -154,7 +204,6 @@ gcal_summary_section_class_init (GcalSummarySectionClass *klass)
   gtk_widget_class_bind_template_child (widget_class, GcalSummarySection, summary_entry);
 
   gtk_widget_class_bind_template_callback (widget_class, on_summary_entry_text_changed_cb);
-  gtk_widget_class_bind_template_callback (widget_class, on_location_entry_changed_cb);
 }
 
 static void

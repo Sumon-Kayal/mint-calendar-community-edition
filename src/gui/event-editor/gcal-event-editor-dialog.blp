@@ -31,50 +31,68 @@ template $GcalEventEditorDialog: Adw.Dialog {
           }
         }
 
-        content: Adw.PreferencesPage {
-          banner: Adw.Banner {
+        content: Box {
+          orientation: vertical;
+
+          Adw.Banner {
             title: _("This event is in a read-only calendar. It cannot be edited or deleted.");
             revealed: bind template.writable inverted;
-          };
-
-          $GcalSummarySection summary_section {
-            dialog: template;
           }
 
-          Adw.PreferencesGroup {
-            $GcalCalendarComboRow calendar_combo_row {
-              sensitive: bind template.writable;
+          Adw.PreferencesPage {
+            vexpand: true;
+
+            Adw.PreferencesGroup {
+              $GcalSummarySection summary_section {
+                sensitive: bind template.writable;
+              }
             }
-          }
 
-          $GcalScheduleSection {
-            dialog: template;
-          }
+            Adw.PreferencesGroup {
+              $GcalCalendarComboRow calendar_combo_row {
+                sensitive: bind template.writable;
+              }
+            }
 
-          $GcalAttendeesSection attendees_section {
-            sensitive: bind template.writable;
-            dialog: template;
-          }
+            Adw.PreferencesGroup {
+              $GcalScheduleSection schedule_section {
+                sensitive: bind template.writable;
+              }
+            }
 
-          $GcalRemindersSection {
-            title: _("Reminders");
-            sensitive: bind template.writable;
-            dialog: template;
-          }
+            Adw.PreferencesGroup participants_group {
+              $GcalAttendeesSection attendees_section {
+                sensitive: bind template.writable;
+              }
+            }
 
-          $GcalNotesSection {
-            dialog: template;
-          }
+            Adw.PreferencesGroup {
+              title: _("Reminders");
 
-          Adw.PreferencesGroup delete_group {
-            Adw.ButtonRow {
-              activated => $on_delete_row_activated_cb(template) not-swapped;
-              title: _("_Delete Event");
-              use-underline: true;
+              $GcalRemindersSection reminders_section {
+                sensitive: bind template.writable;
+              }
+            }
 
-              styles [
-                "destructive-action",
-              ]
+            Adw.PreferencesGroup {
+              title: _("Notes");
+
+              $GcalNotesSection notes_section {
+                sensitive: bind template.writable;
+                vexpand: true;
+              }
+            }
+
+            Adw.PreferencesGroup delete_group {
+              Adw.ButtonRow {
+                activated => $on_delete_row_activated_cb(template) not-swapped;
+                title: _("_Delete Event");
+                use-underline: true;
+
+                styles [
+                  "destructive-action",
+                ]
+              }
             }
           }
         };

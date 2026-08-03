@@ -1,11 +1,12 @@
 # Changelog
 
-## [1.0] - 2026-08-03
+## [1.0] - 2026-08-02
 
 First release of Mint Calendar (Community Edition) as its own independently-versioned project.
 Based on GNOME Calendar's latest stable release (v50), with Linux Mint's compatibility patch
 applied and independent Mint-Y-Dark branding. Releases build and publish automatically via
-GitHub Actions, with CodeQL security scanning on every change.
+GitHub Actions, with CodeQL security scanning on every change. App ID is
+`org.mint.calendar.community.edition` (corrected from an earlier `calender` misspelling).
 
 This is the first release — it hasn't been build-tested end to end yet. See
 [BUILD.md](BUILD.md) before relying on it.

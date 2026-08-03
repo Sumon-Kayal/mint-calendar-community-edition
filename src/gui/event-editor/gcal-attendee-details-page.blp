@@ -12,29 +12,69 @@ template $GcalAttendeeDetailsPage: Adw.NavigationPage {
     }
 
     content: Adw.PreferencesPage {
-      Adw.PreferencesGroup group_accepted {
+      Adw.PreferencesGroup {
         title: _("Accepted");
         visible: bind template.model-accepted as <Gtk.FilterListModel>.n-items;
+
+        ListBox list_accepted {
+          selection-mode: none;
+
+          styles [
+            "boxed-list",
+          ]
+        }
       }
 
-      Adw.PreferencesGroup group_tentative {
+      Adw.PreferencesGroup {
         title: _("Tentative");
         visible: bind template.model-tentative as <Gtk.FilterListModel>.n-items;
+
+        ListBox list_tentative {
+          selection-mode: none;
+
+          styles [
+            "boxed-list",
+          ]
+        }
       }
 
-      Adw.PreferencesGroup group_declined {
+      Adw.PreferencesGroup {
         title: _("Declined");
         visible: bind template.model-declined as <Gtk.FilterListModel>.n-items;
+
+        ListBox list_declined {
+          selection-mode: none;
+
+          styles [
+            "boxed-list",
+          ]
+        }
       }
 
-      Adw.PreferencesGroup group_delegated {
+      Adw.PreferencesGroup {
         title: _("Delegated");
         visible: bind template.model-delegated as <Gtk.FilterListModel>.n-items;
+
+        ListBox list_delegated {
+          selection-mode: none;
+
+          styles [
+            "boxed-list",
+          ]
+        }
       }
 
-      Adw.PreferencesGroup group_not_responded {
+      Adw.PreferencesGroup {
         title: _("Not responded");
         visible: bind template.model-not-responded as <Gtk.FilterListModel>.n-items;
+
+        ListBox list_not_responded {
+          selection-mode: none;
+
+          styles [
+            "boxed-list",
+          ]
+        }
       }
     };
   };

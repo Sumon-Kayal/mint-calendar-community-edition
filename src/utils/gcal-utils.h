@@ -115,7 +115,7 @@ void                 gcal_utils_launch_gnome_settings            (GDBusConnectio
 
 gchar*               gcal_utils_format_filename_for_display      (const gchar         *filename);
 
-gboolean             gcal_utils_extract_google_section           (const gchar        *description,
+void                 gcal_utils_extract_google_section           (const gchar        *description,
                                                                   gchar             **out_description,
                                                                   gchar             **out_meeting_url);
 
@@ -124,8 +124,6 @@ void                 gcal_utils_ask_recurrence_modification_type (GtkWidget     
                                                                   gboolean                   show_mod_all,
                                                                   GcalAskRecurrenceCallback  callback,
                                                                   gpointer                   user_data);
-
-void                 gcal_utils_add_activate_shortcuts           (GtkWidgetClass        *widget_class);
 
 const gchar *        gcal_util_translate_time_string             (const gchar          *str);
 

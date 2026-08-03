@@ -1881,7 +1881,7 @@ gcal_month_view_set_property (GObject      *object,
       break;
 
     case PROP_CONTEXT:
-      g_return_if_fail (self->context == NULL);
+      g_assert (self->context == NULL);
       self->context = g_value_dup_object (value);
 
       for (gint i = 0; i < N_TOTAL_ROWS; i++)

@@ -64,6 +64,8 @@ struct _GcalCalendarManagementDialog
 
   /* auxiliary */
   GcalCalendarManagementPage *pages[N_PAGES];
+
+  GcalContext        *context;
 };
 
 static void          on_page_switched_cb                         (GcalCalendarManagementPage   *page,
@@ -72,6 +74,15 @@ static void          on_page_switched_cb                         (GcalCalendarMa
                                                                   GcalCalendarManagementDialog *self);
 
 G_DEFINE_TYPE (GcalCalendarManagementDialog, gcal_calendar_management_dialog, ADW_TYPE_DIALOG)
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
+
+static GParamSpec *properties[N_PROPS] = { NULL, };
 
 
 /*
@@ -96,6 +107,45 @@ set_page (GcalCalendarManagementDialog *self,
 
   if (page != adw_navigation_view_get_visible_page (self->navigation_view))
     adw_navigation_view_push (self->navigation_view, page);
+}
+
+static void
+setup_context (GcalCalendarManagementDialog *self)
+{
+  const struct {
+    GcalPageType page_type;
+    GType        gtype;
+  } pages[] = {
+    { GCAL_PAGE_CALENDARS, GCAL_TYPE_CALENDARS_PAGE },
+    { GCAL_PAGE_NEW_CALENDAR, GCAL_TYPE_NEW_CALENDAR_PAGE },
+    { GCAL_PAGE_EDIT_CALENDAR, GCAL_TYPE_EDIT_CALENDAR_PAGE },
+  };
+  gint i;
+
+  GCAL_ENTRY;
+
+  for (i = 0; i < N_PAGES; i++)
+    {
+      GcalCalendarManagementPage *page;
+
+      page = g_object_new (pages[i].gtype,
+                           "context", self->context,
+                           NULL);
+
+      adw_navigation_view_add (self->navigation_view, ADW_NAVIGATION_PAGE (page));
+
+      g_signal_connect_object (page,
+                               "switch-page",
+                               G_CALLBACK (on_page_switched_cb),
+                               self,
+                               0);
+
+      self->pages[i] = page;
+    }
+
+  set_page (self, "calendars", NULL);
+
+  GCAL_EXIT;
 }
 
 
@@ -132,13 +182,13 @@ on_page_switched_cb (GcalCalendarManagementPage   *page,
  */
 
 static void
-gcal_calendar_management_dialog_unmap (GtkWidget *widget)
+gcal_calendar_management_dialog_hide (GtkWidget *widget)
 {
-  GcalCalendarManagementDialog *self = GCAL_CALENDAR_MANAGEMENT_DIALOG (widget);
+  GcalCalendarManagementDialog *self = (GcalCalendarManagementDialog *) widget;
 
   set_page (self, "calendars", NULL);
 
-  GTK_WIDGET_CLASS (gcal_calendar_management_dialog_parent_class)->unmap (widget);
+  GTK_WIDGET_CLASS (gcal_calendar_management_dialog_parent_class)->hide (widget);
 }
 
 
@@ -147,13 +197,65 @@ gcal_calendar_management_dialog_unmap (GtkWidget *widget)
  */
 
 static void
+gcal_calendar_management_dialog_get_property (GObject    *object,
+                                              guint       prop_id,
+                                              GValue     *value,
+                                              GParamSpec *pspec)
+{
+  GcalCalendarManagementDialog *self = (GcalCalendarManagementDialog *) object;
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_calendar_management_dialog_set_property (GObject      *object,
+                                              guint         prop_id,
+                                              const GValue *value,
+                                              GParamSpec   *pspec)
+{
+  GcalCalendarManagementDialog *self = (GcalCalendarManagementDialog *) object;
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+      setup_context (self);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
 gcal_calendar_management_dialog_class_init (GcalCalendarManagementDialogClass *klass)
 {
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   g_type_ensure (E_TYPE_SOURCE_LOCAL);
 
-  widget_class->unmap = gcal_calendar_management_dialog_unmap;
+  object_class->get_property = gcal_calendar_management_dialog_get_property;
+  object_class->set_property = gcal_calendar_management_dialog_set_property;
+
+  widget_class->hide = gcal_calendar_management_dialog_hide;
+
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "The context object of the application",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY);
+
+  g_object_class_install_properties (object_class, N_PROPS, properties);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/calendar-management/gcal-calendar-management-dialog.ui");
 
@@ -165,35 +267,7 @@ gcal_calendar_management_dialog_class_init (GcalCalendarManagementDialogClass *k
 static void
 gcal_calendar_management_dialog_init (GcalCalendarManagementDialog *self)
 {
-  const struct {
-    GcalPageType page_type;
-    GType        gtype;
-  } pages[] = {
-    { GCAL_PAGE_CALENDARS, GCAL_TYPE_CALENDARS_PAGE },
-    { GCAL_PAGE_NEW_CALENDAR, GCAL_TYPE_NEW_CALENDAR_PAGE },
-    { GCAL_PAGE_EDIT_CALENDAR, GCAL_TYPE_EDIT_CALENDAR_PAGE },
-  };
-
   gtk_widget_init_template (GTK_WIDGET (self));
-
-  for (gint i = 0; i < N_PAGES; i++)
-    {
-      GcalCalendarManagementPage *page;
-
-      page = g_object_new (pages[i].gtype, NULL);
-
-      adw_navigation_view_add (self->navigation_view, ADW_NAVIGATION_PAGE (page));
-
-      g_signal_connect_object (page,
-                               "switch-page",
-                               G_CALLBACK (on_page_switched_cb),
-                               self,
-                               0);
-
-      self->pages[i] = page;
-    }
-
-  set_page (self, "calendars", NULL);
 }
 
 /*
@@ -201,7 +275,7 @@ gcal_calendar_management_dialog_init (GcalCalendarManagementDialog *self)
  */
 
 GcalCalendarManagementDialog*
-gcal_calendar_management_dialog_new (void)
+gcal_calendar_management_dialog_new (GcalContext *context)
 {
-  return g_object_new (GCAL_TYPE_CALENDAR_MANAGEMENT_DIALOG, NULL);
+  return g_object_new (GCAL_TYPE_CALENDAR_MANAGEMENT_DIALOG, "context", context, NULL);
 }

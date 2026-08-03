@@ -559,7 +559,6 @@ gcal_quick_add_popover_finalize (GObject *object)
 {
   GcalQuickAddPopover *self = (GcalQuickAddPopover *)object;
 
-  g_clear_object (&self->read_write_calendars_model);
   g_clear_object (&self->context);
 
   G_OBJECT_CLASS (gcal_quick_add_popover_parent_class)->finalize (object);
@@ -606,11 +605,8 @@ gcal_quick_add_popover_set_property (GObject      *object,
         {
           GcalManager *manager;
 
-          g_return_if_fail (self->context == NULL);
+          g_assert (self->context == NULL);
           self->context = g_value_dup_object (value);
-
-          if (self->context == NULL)
-            return;
 
           manager = gcal_context_get_manager (self->context);
           set_up_context (self);
@@ -705,7 +701,7 @@ gcal_quick_add_popover_class_init (GcalQuickAddPopoverClass *klass)
                                                         "Context of the application",
                                                         "The singleton context of the application",
                                                         GCAL_TYPE_CONTEXT,
-                                                        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+                                                        G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS));
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/gcal-quick-add-popover.ui");
 

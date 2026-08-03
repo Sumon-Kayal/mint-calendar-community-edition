@@ -762,13 +762,13 @@ invalidate_layout_blocks (GcalMonthViewRow *self)
   if (!self->layout_blocks_valid)
     GCAL_RETURN ();
 
-  self->layout_blocks_valid = FALSE;
-
   if (gtk_widget_get_mapped (GTK_WIDGET (self)))
     {
       gtk_widget_add_tick_callback (GTK_WIDGET (self), widget_tick_cb, self, NULL);
       gtk_widget_queue_allocate (GTK_WIDGET (self));
     }
+
+  self->layout_blocks_valid = FALSE;
 
   GCAL_EXIT;
 }
@@ -825,8 +825,7 @@ widget_tick_cb (GtkWidget     *widget,
 
   g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
 
-  if (!self->layout_blocks_valid)
-    recalculate_layout_blocks (self);
+  recalculate_layout_blocks (self);
 
   GCAL_RETURN (G_SOURCE_REMOVE);
 }
@@ -846,10 +845,7 @@ gcal_month_view_row_map (GtkWidget *widget)
   GTK_WIDGET_CLASS (gcal_month_view_row_parent_class)->map (widget);
 
   if (!self->layout_blocks_valid)
-    {
-      gtk_widget_add_tick_callback (GTK_WIDGET (self), widget_tick_cb, self, NULL);
-      gtk_widget_queue_allocate (GTK_WIDGET (self));
-    }
+    recalculate_layout_blocks (self);
 }
 
 static gboolean
@@ -1216,7 +1212,7 @@ gcal_month_view_row_new (void)
 GcalContext*
 gcal_month_view_row_get_context (GcalMonthViewRow *self)
 {
-  g_return_val_if_fail (GCAL_IS_MONTH_VIEW_ROW (self), NULL);
+  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
 
   return self->context;
 }
@@ -1225,7 +1221,7 @@ void
 gcal_month_view_row_set_context (GcalMonthViewRow *self,
                                  GcalContext      *context)
 {
-  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
 
   if (g_set_object (&self->context, context))
     {
@@ -1236,14 +1232,6 @@ gcal_month_view_row_set_context (GcalMonthViewRow *self,
     }
 }
 
-/**
- * gcal_month_view_row_get_range:
- * @self: a #GcalMonthViewRow
- *
- * Retrieves the range for this row.
- *
- * Returns: (transfer full) (nullable): the row's range
- */
 GcalRange *
 gcal_month_view_row_get_range (GcalMonthViewRow *self)
 {
@@ -1288,8 +1276,8 @@ void
 gcal_month_view_row_add_event (GcalMonthViewRow *self,
                                GcalEvent        *event)
 {
-  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
-  g_return_if_fail (GCAL_IS_EVENT (event));
+  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_assert (GCAL_IS_EVENT (event));
 
   g_list_store_insert_sorted (self->events, event, compare_events_cb, self);
   invalidate_layout_blocks (self);
@@ -1299,11 +1287,10 @@ void
 gcal_month_view_row_remove_event (GcalMonthViewRow *self,
                                   GcalEvent        *event)
 {
-  GPtrArray *blocks;
   guint position;
 
-  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
-  g_return_if_fail (GCAL_IS_EVENT (event));
+  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_assert (GCAL_IS_EVENT (event));
 
   GCAL_ENTRY;
 
@@ -1314,18 +1301,6 @@ gcal_month_view_row_remove_event (GcalMonthViewRow *self,
                  gcal_event_get_uid (event),
                  G_OBJECT_TYPE_NAME (self));
       GCAL_RETURN ();
-    }
-
-  /* Remove event widgets from layout blocks and unparent them */
-  blocks = g_hash_table_lookup (self->layout_blocks, event);
-  if (blocks)
-    {
-      for (guint i = 0; i < blocks->len; i++)
-        {
-          GcalEventBlock *block = g_ptr_array_index (blocks, i);
-          gtk_widget_unparent (block->event_widget);
-        }
-      g_hash_table_remove (self->layout_blocks, event);
     }
 
   g_list_store_remove (self->events, position);
