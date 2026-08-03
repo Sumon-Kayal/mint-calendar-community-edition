@@ -52,9 +52,9 @@ typedef enum
  *
  * @GCAL_RANGE_BEFORE: range @a is before @b
  * @GCAL_RANGE_AFTER: range @a is after @b
- * @GCAL_RANGE_MATCH: range @a is exactly equal to @b
  *
- * The position of @a relative to @b.
+ * The position of @a relative to @b. When the ranges are exactly equal, it
+ * is undefined.
  */
 typedef enum
 {

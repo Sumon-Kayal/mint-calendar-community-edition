@@ -72,8 +72,8 @@ void                 gcal_manager_save_source                    (GcalManager   
                                                                   ESource            *source);
 
 GPtrArray*           gcal_manager_get_events                     (GcalManager        *self,
-                                                                  GDateTime          *start_date,
-                                                                  GDateTime          *end_date);
+                                                                  GDateTime          *range_start,
+                                                                  GDateTime          *range_end);
 
 gboolean             gcal_manager_get_synchronizing              (GcalManager        *self);
 

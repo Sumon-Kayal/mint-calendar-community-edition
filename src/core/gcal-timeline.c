@@ -106,7 +106,7 @@ static gchar*
 format_subscriber_event_id (GcalTimelineSubscriber *subscriber,
                             GcalEvent              *event)
 {
-  return g_strdup_printf ("%p:%s", subscriber, gcal_event_get_uid (event));
+  return g_strdup_printf ("%s:%s", G_OBJECT_TYPE_NAME (subscriber), gcal_event_get_uid (event));
 }
 
 static QueueData *
@@ -159,31 +159,20 @@ queue_event_data (GcalTimeline           *self,
           break;
         case REMOVE_EVENT:
             {
-              GList *queued_add_links;
+              GList *queued_add_link;
 
-              queued_add_links = g_hash_table_lookup (self->queued_adds, subscriber_event_id);
-              if (queued_add_links)
+              queued_add_link = g_hash_table_lookup (self->queued_adds, subscriber_event_id);
+              if (queued_add_link)
                 {
-                  GList *l;
+                  QueueData *queued_add = queued_add_link->data;
 
-                  GCAL_TRACE_MSG ("Removing ADD_EVENT(s) for event '%s' (%s) from event queue",
+                  GCAL_TRACE_MSG ("Removing ADD_EVENT for event '%s' (%s) from event queue",
                                   gcal_event_get_summary (event),
                                   subscriber_event_id);
 
-                  /* Remove all queued ADD operations for this subscriber+event */
-                  for (l = queued_add_links; l != NULL; l = l->next)
-                    {
-                      QueueData *queued_add = l->data;
-                      GList *queue_link = g_queue_find (self->event_queue, queued_add);
-
-                      if (queue_link)
-                        {
-                          g_queue_delete_link (self->event_queue, queue_link);
-                          queue_data_free (queued_add);
-                        }
-                    }
-
                   g_hash_table_remove (self->queued_adds, subscriber_event_id);
+                  g_queue_delete_link (self->event_queue, queued_add_link);
+                  queue_data_free (queued_add);
                   return;
                 }
             }
@@ -199,27 +188,9 @@ queue_event_data (GcalTimeline           *self,
       switch (queue_event)
         {
         case ADD_EVENT:
-          {
-            GList *existing_links;
-            GList *new_link;
-
-            existing_links = g_hash_table_lookup (self->queued_adds, subscriber_event_id);
-            new_link = g_queue_peek_tail_link (self->event_queue);
-
-            if (existing_links)
-              {
-                /* Append to existing list of queued ADD links for this subscriber+event */
-                existing_links = g_list_append (existing_links, new_link->data);
-              }
-            else
-              {
-                /* Create new list with this link */
-                existing_links = g_list_append (NULL, new_link->data);
-                g_hash_table_insert (self->queued_adds,
-                                     g_steal_pointer (&subscriber_event_id),
-                                     existing_links);
-              }
-          }
+          g_hash_table_insert (self->queued_adds,
+                               g_steal_pointer (&subscriber_event_id),
+                               g_queue_peek_tail_link (self->event_queue));
           break;
 
         case UPDATE_EVENT:
@@ -623,7 +594,7 @@ calendar_monitor_update_events_cb (GcalCalendarMonitor *monitor,
         {
           GcalTimelineSubscriber *old_subscriber = g_ptr_array_index (old_subscribers_at_range, j);
 
-          if (!subscribers_at_range || !g_ptr_array_find (subscribers_at_range, old_subscriber, NULL))
+          if (!g_ptr_array_find (subscribers_at_range, old_subscriber, NULL))
             queue_event_data (self, REMOVE_EVENT, old_subscriber, old_event, NULL, FALSE);
         }
 
@@ -633,7 +604,7 @@ calendar_monitor_update_events_cb (GcalCalendarMonitor *monitor,
         {
           GcalTimelineSubscriber *subscriber = g_ptr_array_index (subscribers_at_range, j);
 
-          if (old_subscribers_at_range && g_ptr_array_find (old_subscribers_at_range, subscriber, NULL))
+          if (g_ptr_array_find (old_subscribers_at_range, subscriber, NULL))
             queue_event_data (self, UPDATE_EVENT, subscriber, event, old_event, FALSE);
           else
             queue_event_data (self, ADD_EVENT, subscriber, event, NULL, FALSE);
@@ -865,29 +836,25 @@ gcal_timeline_finalize (GObject *object)
 {
   GcalTimeline *self = (GcalTimeline *)object;
 
-  if (self->context)
-    g_object_remove_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
-
   g_cancellable_cancel (self->cancellable);
   g_clear_object (&self->cancellable);
 
   g_clear_handle_id (&self->update_range_idle_id, g_source_remove);
 
+  g_clear_pointer (&self->events, gcal_range_tree_unref);
+  g_clear_pointer (&self->calendars, g_hash_table_destroy);
+  g_clear_pointer (&self->subscribers, g_hash_table_destroy);
+  g_clear_pointer (&self->queued_adds, g_hash_table_destroy);
+  g_clear_pointer (&self->subscriber_ranges, gcal_range_tree_unref);
+
   g_source_destroy (self->timeline_source);
   g_clear_pointer (&self->timeline_source, g_source_unref);
-
-  g_clear_pointer (&self->queued_adds, g_hash_table_destroy);
 
   if (self->event_queue)
     {
       g_queue_free_full (self->event_queue, (GDestroyNotify) queue_data_free);
       self->event_queue = NULL;
     }
-
-  g_clear_pointer (&self->events, gcal_range_tree_unref);
-  g_clear_pointer (&self->calendars, g_hash_table_destroy);
-  g_clear_pointer (&self->subscribers, g_hash_table_destroy);
-  g_clear_pointer (&self->subscriber_ranges, gcal_range_tree_unref);
 
   G_OBJECT_CLASS (gcal_timeline_parent_class)->finalize (object);
 }
@@ -932,7 +899,6 @@ gcal_timeline_set_property (GObject      *object,
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
       self->context = g_value_get_object (value);
-      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
       break;
 
     case PROP_FILTER:
@@ -965,7 +931,7 @@ gcal_timeline_class_init (GcalTimelineClass *klass)
                                                     G_PARAM_READABLE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
 
   /**
-   * GcalTimeline:context:
+   * GcalSearchEngine::context:
    *
    * The #GcalContext of the application.
    */
@@ -1000,7 +966,7 @@ gcal_timeline_init (GcalTimeline *self)
   self->subscribers = g_hash_table_new_full (NULL, NULL, g_object_unref, (GDestroyNotify) gcal_range_unref);
   self->subscriber_ranges = gcal_range_tree_new ();
   self->event_queue = g_queue_new ();
-  self->queued_adds = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify) g_list_free);
+  self->queued_adds = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   /* Timeline source */
   timeline_source = (TimelineSource*) g_source_new (&timeline_source_funcs, sizeof (TimelineSource));

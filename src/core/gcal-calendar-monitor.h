@@ -30,18 +30,6 @@ G_BEGIN_DECLS
 #define GCAL_TYPE_CALENDAR_MONITOR (gcal_calendar_monitor_get_type())
 G_DECLARE_FINAL_TYPE (GcalCalendarMonitor, gcal_calendar_monitor, GCAL, CALENDAR_MONITOR, GObject)
 
-/**
- * GcalCalendarMonitorListener:
- * @add_events: Called when events are added to the monitored calendar
- * @update_events: Called when events are updated in the monitored calendar
- * @remove_events: Called when events are removed from the monitored calendar
- *
- * A listener structure for calendar monitor callbacks.
- *
- * The listener pointer passed to gcal_calendar_monitor_new() is borrowed
- * and must remain valid for the entire lifetime of the returned
- * #GcalCalendarMonitor instance.
- */
 typedef struct {
   void               (*add_events)                               (GcalCalendarMonitor *self,
                                                                   GPtrArray           *events,

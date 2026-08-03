@@ -297,14 +297,10 @@ on_calendar_created_cb (GObject      *source_object,
   offline_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_OFFLINE);
   e_source_offline_set_stay_synchronized (offline_extension, TRUE);
 
-  /* And also make sure the source is periodically updated, but only if not already configured */
+  /* And also make sure the source is periodically updated */
   refresh_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_REFRESH);
-  if (!e_source_refresh_get_enabled (refresh_extension) &&
-      e_source_refresh_get_interval_minutes (refresh_extension) == 0)
-    {
-      e_source_refresh_set_enabled (refresh_extension, TRUE);
-      e_source_refresh_set_interval_minutes (refresh_extension, 30);
-    }
+  e_source_refresh_set_enabled (refresh_extension, TRUE);
+  e_source_refresh_set_interval_minutes (refresh_extension, 30);
 
   e_source_registry_commit_source (self->source_registry,
                                    source,
@@ -648,8 +644,7 @@ gcal_manager_set_property (GObject      *object,
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
       self->context = g_value_get_object (value);
-      if (self->context != NULL)
-        g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
+      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
       break;
 
     case PROP_DEFAULT_CALENDAR:
@@ -1244,13 +1239,14 @@ gcal_manager_move_event_to_source (GcalManager *self,
 /**
  * gcal_manager_get_events:
  * @self: a #GcalManager
- * @start_date: the start of the date range
- * @end_date: the end of the date range
+ * @start_date: the start of the dete range
+ * @end_date: the end of the dete range
  *
- * Returns a pointer array with #GcalEvent objects owned by the caller.
- * Both the array and the events inside it are owned by the caller.
+ * Returns a list with #GcalEvent objects owned by the caller,
+ * the list and the objects. The components inside the list are
+ * owned by the caller as well.
  *
- * Returns: (nullable) (transfer full) (element-type GcalEvent): a #GPtrArray
+ * Returns: (nullable)(transfer full)(content-type GcalEvent):a #GList
  */
 GPtrArray*
 gcal_manager_get_events (GcalManager *self,
