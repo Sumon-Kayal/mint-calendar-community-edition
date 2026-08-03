@@ -19,6 +19,7 @@
 #define G_LOG_DOMAIN "GcalManager"
 
 #include "gcal-application.h"
+#include "gcal-context.h"
 #include "gcal-debug.h"
 #include "gcal-manager.h"
 #include "gcal-timeline.h"
@@ -73,6 +74,8 @@ struct _GcalManager
   gint                clients_synchronizing;
 
   GcalTimeline       *timeline;
+
+  GcalContext        *context;
 };
 
 G_DEFINE_TYPE (GcalManager, gcal_manager, G_TYPE_OBJECT)
@@ -80,6 +83,7 @@ G_DEFINE_TYPE (GcalManager, gcal_manager, G_TYPE_OBJECT)
 enum
 {
   PROP_0,
+  PROP_CONTEXT,
   PROP_DEFAULT_CALENDAR,
   PROP_SYNCHRONIZING,
   NUM_PROPS
@@ -245,6 +249,7 @@ on_calendar_created_cb (GObject      *source_object,
 {
   g_autoptr (ESource) default_source = NULL;
   g_autoptr (GError) error = NULL;
+  ESourceRefresh *refresh_extension;
   ESourceOffline *offline_extension;
   GcalCalendar *calendar;
   GcalManager *self;
@@ -291,6 +296,11 @@ on_calendar_created_cb (GObject      *source_object,
   /* Cache all the online calendars, so the user can see them offline */
   offline_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_OFFLINE);
   e_source_offline_set_stay_synchronized (offline_extension, TRUE);
+
+  /* And also make sure the source is periodically updated */
+  refresh_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_REFRESH);
+  e_source_refresh_set_enabled (refresh_extension, TRUE);
+  e_source_refresh_set_interval_minutes (refresh_extension, 30);
 
   e_source_registry_commit_source (self->source_registry,
                                    source,
@@ -605,6 +615,12 @@ gcal_manager_finalize (GObject *object)
 
   g_clear_object (&self->timeline);
 
+  if (self->context)
+    {
+      g_object_remove_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
+      self->context = NULL;
+    }
+
   g_clear_object (&self->calendars_model);
   g_clear_pointer (&self->clients, g_hash_table_destroy);
 
@@ -625,6 +641,12 @@ gcal_manager_set_property (GObject      *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_get_object (value);
+      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
+      break;
+
     case PROP_DEFAULT_CALENDAR:
       gcal_manager_set_default_calendar (self, g_value_get_object (value));
       break;
@@ -652,6 +674,10 @@ gcal_manager_get_property (GObject    *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
     case PROP_DEFAULT_CALENDAR:
       g_value_set_object (value, gcal_manager_get_default_calendar (self));
       break;
@@ -675,6 +701,17 @@ gcal_manager_class_init (GcalManagerClass *klass)
   object_class->finalize = gcal_manager_finalize;
   object_class->set_property = gcal_manager_set_property;
   object_class->get_property = gcal_manager_get_property;
+
+  /**
+   * GcalManager:context:
+   *
+   * The #GcalContext.
+   */
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Data context",
+                                                  "Data context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
 
   /**
    * GcalManager:default-calendar:
@@ -735,15 +772,17 @@ gcal_manager_init (GcalManager *self)
 /* Public API */
 /**
  * gcal_manager_new:
+ * @context: a #GcalContext
  *
  * Creates a new #GcalManager.
  *
  * Returns: (transfer full): a newly created #GcalManager
  */
 GcalManager*
-gcal_manager_new (void)
+gcal_manager_new (GcalContext *context)
 {
   return g_object_new (GCAL_TYPE_MANAGER,
+                       "context", context,
                        NULL);
 }
 
@@ -1198,6 +1237,34 @@ gcal_manager_move_event_to_source (GcalManager *self,
 }
 
 /**
+ * gcal_manager_get_events:
+ * @self: a #GcalManager
+ * @start_date: the start of the dete range
+ * @end_date: the end of the dete range
+ *
+ * Returns a list with #GcalEvent objects owned by the caller,
+ * the list and the objects. The components inside the list are
+ * owned by the caller as well.
+ *
+ * Returns: (nullable)(transfer full)(content-type GcalEvent):a #GList
+ */
+GPtrArray*
+gcal_manager_get_events (GcalManager *self,
+                         GDateTime   *start_date,
+                         GDateTime   *end_date)
+{
+  g_autoptr (GPtrArray) events_at_range = NULL;
+
+  GCAL_ENTRY;
+
+  g_return_val_if_fail (GCAL_IS_MANAGER (self), NULL);
+
+  events_at_range = gcal_timeline_get_events_at_range (self->timeline, start_date, end_date);
+
+  GCAL_RETURN (g_steal_pointer (&events_at_range));
+}
+
+/**
  * gcal_manager_get_synchronizing:
  * @self: a #GcalManager
  *
@@ -1222,7 +1289,7 @@ gcal_manager_startup (GcalManager *self)
 
   GCAL_ENTRY;
 
-  self->timeline = gcal_timeline_new_augmented (2.0);
+  self->timeline = gcal_timeline_new (self->context);
   self->clients = g_hash_table_new_full ((GHashFunc) e_source_hash,
                                          (GEqualFunc) e_source_equal,
                                          g_object_unref,

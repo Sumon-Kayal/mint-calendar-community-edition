@@ -30,7 +30,7 @@ G_BEGIN_DECLS
 #define GCAL_TYPE_MANAGER (gcal_manager_get_type ())
 G_DECLARE_FINAL_TYPE (GcalManager, gcal_manager, GCAL, MANAGER, GObject)
 
-GcalManager*         gcal_manager_new                            (void);
+GcalManager*         gcal_manager_new                            (GcalContext        *context);
 
 ESource*             gcal_manager_get_source                     (GcalManager        *self,
                                                                   const gchar        *uid);
@@ -70,6 +70,10 @@ gchar*               gcal_manager_add_source                     (GcalManager   
 
 void                 gcal_manager_save_source                    (GcalManager        *self,
                                                                   ESource            *source);
+
+GPtrArray*           gcal_manager_get_events                     (GcalManager        *self,
+                                                                  GDateTime          *range_start,
+                                                                  GDateTime          *range_end);
 
 gboolean             gcal_manager_get_synchronizing              (GcalManager        *self);
 

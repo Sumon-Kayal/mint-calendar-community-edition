@@ -19,7 +19,6 @@
 #ifndef __GCAL_UTILS_H__
 #define __GCAL_UTILS_H__
 
-#include "gcal-application.h"
 #include "gcal-date-time-utils.h"
 #include "gcal-manager.h"
 
@@ -31,8 +30,6 @@
 #define ALIGNED(x)      (round (x) + 0.5)
 #define MINUTES_PER_DAY 1440
 #define MAX_MINUTES     (N_WEEKDAYS * MINUTES_PER_DAY)
-
-#define GCAL_DEFAULT_APPLICATION GCAL_APPLICATION (g_application_get_default ())
 
 #define gcal_clear_timeout(pp) { if (pp && *pp) { g_source_remove (*pp); *pp = 0; } }
 #define gcal_clear_signal_handler(pp,instance) { if (pp && *pp > 0) { g_signal_handler_disconnect (instance, *pp); *pp = 0; } }
@@ -118,15 +115,17 @@ void                 gcal_utils_launch_gnome_settings            (GDBusConnectio
 
 gchar*               gcal_utils_format_filename_for_display      (const gchar         *filename);
 
-void                 gcal_utils_extract_meeting_url              (const char         *description,
-                                                                  char              **out_description,
-                                                                  char              **out_meeting_url);
+gboolean             gcal_utils_extract_google_section           (const gchar        *description,
+                                                                  gchar             **out_description,
+                                                                  gchar             **out_meeting_url);
 
 void                 gcal_utils_ask_recurrence_modification_type (GtkWidget                 *parent,
                                                                   GcalEvent                 *event,
                                                                   gboolean                   show_mod_all,
                                                                   GcalAskRecurrenceCallback  callback,
                                                                   gpointer                   user_data);
+
+void                 gcal_utils_add_activate_shortcuts           (GtkWidgetClass        *widget_class);
 
 const gchar *        gcal_util_translate_time_string             (const gchar          *str);
 
@@ -141,7 +140,4 @@ SoupSession *        gcal_create_soup_session                    (void);
 GListModel *         gcal_create_writable_calendars_model        (GcalManager        *manager);
 
 const gchar *        gcal_get_email_from_mailto_uri              (const gchar        *mailto_uri);
-
-guint                gcal_create_activate_signal_and_shortcuts   (GtkWidgetClass *widget_class,
-                                                                  GType           widget_type);
 #endif /* __GCAL_UTILS_H__ */

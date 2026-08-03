@@ -30,11 +30,17 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (GcalWeekGrid, gcal_week_grid, GCAL, WEEK_GRID, GtkWidget)
 
+void                 gcal_week_grid_set_context                  (GcalWeekGrid       *week_grid,
+                                                                  GcalContext        *context);
+
 void                 gcal_week_grid_set_first_weekday            (GcalWeekGrid       *week_grid,
                                                                   gint                nr_day);
 
-void                 gcal_week_grid_set_model                    (GcalWeekGrid       *self,
-                                                                  GListModel         *model);
+void                 gcal_week_grid_add_event                    (GcalWeekGrid       *self,
+                                                                  GcalEvent          *event);
+
+void                 gcal_week_grid_remove_event                 (GcalWeekGrid       *self,
+                                                                  const gchar        *uid);
 
 GList*               gcal_week_grid_get_children_by_uuid         (GcalWeekGrid          *self,
                                                                   GcalRecurrenceModType  mod,

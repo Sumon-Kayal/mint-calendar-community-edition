@@ -40,9 +40,10 @@ struct _GcalShellSearchProvider
   GObject             parent;
 
   GcalShellSearchProvider2 *skel;
+  GcalContext        *context;
 
   PendingSearch      *pending_search;
-  GListModel         *events;
+  GHashTable         *events;
 
   GDateTime          *range_start;
   GDateTime          *range_end;
@@ -54,6 +55,15 @@ static void          gcal_timeline_subscriber_interface_init     (GcalTimelineSu
 G_DEFINE_TYPE_WITH_CODE (GcalShellSearchProvider, gcal_shell_search_provider, G_TYPE_OBJECT,
                          G_IMPLEMENT_INTERFACE (GCAL_TYPE_TIMELINE_SUBSCRIBER,
                                                 gcal_timeline_subscriber_interface_init));
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
+
+static GParamSpec* properties[N_PROPS] = { NULL, };
 
 
 /*
@@ -108,12 +118,10 @@ maybe_update_range (GcalShellSearchProvider *self)
   g_autoptr (GDateTime) end = NULL;
   g_autoptr (GDateTime) now = NULL;
   gboolean range_changed = FALSE;
-  GcalContext *context;
 
   GCAL_ENTRY;
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  now = g_date_time_new_now (gcal_context_get_timezone (context));
+  now = g_date_time_new_now (gcal_context_get_timezone (self->context));
   start = g_date_time_add_weeks (now, -1);
   end = g_date_time_add_weeks (now, 3);
 
@@ -233,7 +241,6 @@ get_result_metas_cb (GcalShellSearchProvider  *self,
                      gchar                   **results,
                      GcalShellSearchProvider2 *skel)
 {
-  g_autoptr (GHashTable) uid_to_event = NULL;
   GDateTime *local_datetime;
   GVariantBuilder abuilder, builder;
   GcalEvent *event;
@@ -243,16 +250,6 @@ get_result_metas_cb (GcalShellSearchProvider  *self,
 
   GCAL_ENTRY;
 
-  uid_to_event = g_hash_table_new (g_str_hash, g_str_equal);
-
-  for (size_t i = 0; i < g_list_model_get_n_items (self->events); i++)
-    {
-      g_autoptr (GcalEvent) event = g_list_model_get_item (self->events, i);
-
-      if (!g_hash_table_insert (uid_to_event, (gpointer) gcal_event_get_uid (event), event))
-        g_assert_not_reached ();
-    }
-
   g_variant_builder_init (&abuilder, G_VARIANT_TYPE ("aa{sv}"));
   for (i = 0; i < g_strv_length (results); i++)
     {
@@ -261,7 +258,7 @@ get_result_metas_cb (GcalShellSearchProvider  *self,
       g_autoptr (GVariant) icon_variant = NULL;
 
       uuid = results[i];
-      event = g_hash_table_lookup (uid_to_event, uuid);
+      event = g_hash_table_lookup (self->events, uuid);
 
       g_variant_builder_init (&builder, G_VARIANT_TYPE ("a{sv}"));
       g_variant_builder_add (&builder, "{sv}", "id", g_variant_new_string (uuid));
@@ -302,22 +299,9 @@ activate_result_cb (GcalShellSearchProvider  *self,
 
   GCAL_ENTRY;
 
-  g_assert (G_IS_LIST_MODEL (self->events));
-
-  for (size_t i = 0; i < g_list_model_get_n_items (self->events); i++)
-    {
-      g_autoptr (GcalEvent) event = g_list_model_get_item (self->events, i);
-
-      if (g_strcmp0 (result, gcal_event_get_uid (event)) == 0)
-        {
-          event = g_steal_pointer (&event);
-          break;
-        }
-    }
-
-  g_assert (GCAL_IS_EVENT (event));
-
   application = g_application_get_default ();
+
+  event = g_hash_table_lookup (self->events, result);
   dtstart = gcal_event_get_date_start (event);
 
   gcal_application_set_uuid (GCAL_APPLICATION (application), result);
@@ -358,7 +342,8 @@ on_timeline_completed_cb (GcalTimeline            *timeline,
                           GcalShellSearchProvider *self)
 {
   GVariantBuilder builder;
-  g_autoptr (GtkSortListModel) sorted_events = NULL;
+  g_autoptr (GList) events = NULL;
+  GList *l;
   time_t current_time_t;
 
   GCAL_ENTRY;
@@ -369,9 +354,8 @@ on_timeline_completed_cb (GcalTimeline            *timeline,
   if (!gcal_timeline_is_complete (timeline))
     GCAL_RETURN ();
 
-  g_assert (G_IS_LIST_MODEL (self->events));
-
-  if (g_list_model_get_n_items(self->events) == 0)
+  events = g_hash_table_get_values (self->events);
+  if (!events)
     {
       g_dbus_method_invocation_return_value (self->pending_search->invocation, g_variant_new ("(as)", NULL));
       GCAL_GOTO (out);
@@ -380,16 +364,19 @@ on_timeline_completed_cb (GcalTimeline            *timeline,
   g_variant_builder_init (&builder, G_VARIANT_TYPE ("as"));
 
   current_time_t = time (NULL);
-  sorted_events = gtk_sort_list_model_new (g_object_ref (self->events),
-                                           GTK_SORTER (gtk_custom_sorter_new ((GCompareDataFunc) sort_event_data,
-                                                                              GINT_TO_POINTER (current_time_t),
-                                                                              NULL)));
-
-  for (size_t i = 0; i < g_list_model_get_n_items(G_LIST_MODEL (sorted_events)); i++)
+  events = g_list_sort_with_data (events, (GCompareDataFunc) sort_event_data, GINT_TO_POINTER (current_time_t));
+  for (l = events; l != NULL; l = g_list_next (l))
     {
-      g_autoptr (GcalEvent) event = g_list_model_get_item (G_LIST_MODEL (sorted_events), i);
+      const gchar *uid;
 
-      g_variant_builder_add (&builder, "s", gcal_event_get_uid (event));
+      uid = gcal_event_get_uid (l->data);
+
+      if (g_hash_table_contains (self->events, uid))
+        continue;
+
+      g_variant_builder_add (&builder, "s", uid);
+
+      g_hash_table_insert (self->events, g_strdup (uid), l->data);
     }
 
   g_dbus_method_invocation_return_value (self->pending_search->invocation, g_variant_new ("(as)", &builder));
@@ -440,14 +427,36 @@ gcal_shell_search_provider_get_range (GcalTimelineSubscriber *subscriber)
 }
 
 static void
-gcal_shell_search_provider_set_model (GcalTimelineSubscriber *subscriber,
-                                      GListModel             *model)
+gcal_shell_search_provider_add_event (GcalTimelineSubscriber *subscriber,
+                                      GcalEvent              *event)
 {
   GcalShellSearchProvider *self = GCAL_SHELL_SEARCH_PROVIDER (subscriber);
 
   GCAL_ENTRY;
 
-  g_set_object (&self->events, model);
+  g_hash_table_insert (self->events,
+                       g_strdup (gcal_event_get_uid (event)),
+                       g_object_ref (event));
+
+  GCAL_EXIT;
+}
+
+static void
+gcal_shell_search_provider_update_event (GcalTimelineSubscriber *subscriber,
+                                         GcalEvent              *old_event,
+                                         GcalEvent              *event)
+{
+}
+
+static void
+gcal_shell_search_provider_remove_event (GcalTimelineSubscriber *subscriber,
+                                         GcalEvent              *event)
+{
+  GcalShellSearchProvider *self = GCAL_SHELL_SEARCH_PROVIDER (subscriber);
+
+  GCAL_ENTRY;
+
+  g_hash_table_remove (self->events, gcal_event_get_uid (event));
 
   GCAL_EXIT;
 }
@@ -456,7 +465,9 @@ static void
 gcal_timeline_subscriber_interface_init (GcalTimelineSubscriberInterface *iface)
 {
   iface->get_range = gcal_shell_search_provider_get_range;
-  iface->set_model = gcal_shell_search_provider_set_model;
+  iface->add_event = gcal_shell_search_provider_add_event;
+  iface->update_event = gcal_shell_search_provider_update_event;
+  iface->remove_event = gcal_shell_search_provider_remove_event;
 }
 
 
@@ -469,25 +480,63 @@ gcal_shell_search_provider_finalize (GObject *object)
 {
   GcalShellSearchProvider *self = (GcalShellSearchProvider *) object;
 
-  g_clear_object (&self->events);
+  g_clear_pointer (&self->events, g_hash_table_destroy);
+  g_clear_object (&self->context);
   g_clear_object (&self->skel);
 
   G_OBJECT_CLASS (gcal_shell_search_provider_parent_class)->finalize (object);
 }
 
 static void
-gcal_shell_search_provider_constructed (GObject *object)
+gcal_shell_search_provider_get_property (GObject    *object,
+                                         guint       property_id,
+                                         GValue     *value,
+                                         GParamSpec *pspec)
 {
-  GcalShellSearchProvider *self = (GcalShellSearchProvider *) object;
+  GcalShellSearchProvider *self = GCAL_SHELL_SEARCH_PROVIDER (object);
 
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  GcalManager *manager = gcal_context_get_manager (context);
+  switch (property_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
 
-  self->timeline = gcal_timeline_new ();
-  g_signal_connect (self->timeline, "notify::complete", G_CALLBACK (on_timeline_completed_cb), self);
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    }
+}
 
-  g_signal_connect (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self);
-  g_signal_connect (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self);
+static void
+gcal_shell_search_provider_set_property (GObject      *object,
+                                         guint         property_id,
+                                         const GValue *value,
+                                         GParamSpec   *pspec)
+{
+  GcalShellSearchProvider *self = GCAL_SHELL_SEARCH_PROVIDER (object);
+
+  switch (property_id)
+    {
+    case PROP_CONTEXT:
+      {
+        GcalManager *manager;
+
+        g_assert (self->context == NULL);
+        self->context = g_value_get_object (value);
+
+        self->timeline = gcal_timeline_new (self->context);
+        g_signal_connect (self->timeline, "notify::complete", G_CALLBACK (on_timeline_completed_cb), self);
+
+        manager = gcal_context_get_manager (self->context);
+        g_signal_connect (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self);
+        g_signal_connect (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self);
+
+        g_object_notify_by_pspec (object, properties[PROP_CONTEXT]);
+      }
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    }
 }
 
 static void
@@ -496,12 +545,22 @@ gcal_shell_search_provider_class_init (GcalShellSearchProviderClass *klass)
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   object_class->finalize = gcal_shell_search_provider_finalize;
-  object_class->constructed = gcal_shell_search_provider_constructed;
+  object_class->get_property = gcal_shell_search_provider_get_property;
+  object_class->set_property = gcal_shell_search_provider_set_property;
+
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "The context object",
+                                                  "The context object",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_PROPS, properties);
 }
 
 static void
 gcal_shell_search_provider_init (GcalShellSearchProvider *self)
 {
+  self->events = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
   self->skel = gcal_shell_search_provider2_skeleton_new ();
 
   g_signal_connect_object (self->skel, "handle-get-initial-result-set", G_CALLBACK (get_initial_result_set_cb), self, G_CONNECT_SWAPPED);
@@ -512,9 +571,10 @@ gcal_shell_search_provider_init (GcalShellSearchProvider *self)
 }
 
 GcalShellSearchProvider*
-gcal_shell_search_provider_new (void)
+gcal_shell_search_provider_new (GcalContext *context)
 {
   return g_object_new (GCAL_TYPE_SHELL_SEARCH_PROVIDER,
+                       "context", context,
                        NULL);
 }
 

@@ -120,7 +120,7 @@ sudo apt install ./mint-calendar-community-edition_*.deb
 ## Icons and branding
 
 The application icon, launcher entry (`data/org.gnome.Calendar.desktop.in.in`), and app ID
-(`org.mint.calendar.community.edition`, set in `meson.build`) were restyled for this fork —
+(`org.mint.calender.community.edition`, set in `meson.build`) were restyled for this fork —
 flat, Mint-Y-Dark-inspired palette in place of upstream's gradient purple. The symbolic icons
 (`data/icons/hicolor/symbolic/`) were left as generic single-fill icons deliberately: GTK
 recolors symbolic icons automatically based on the active theme, so hardcoding a dark-mode

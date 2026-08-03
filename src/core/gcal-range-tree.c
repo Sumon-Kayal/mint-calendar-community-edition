@@ -432,34 +432,6 @@ count_entries_at_range (GcalRange *range,
 }
 
 static inline gboolean
-has_entries_at_range (GcalRange *range,
-                      gpointer   data,
-                      gpointer   user_data)
-{
-  GcalRangePosition position;
-  GcalRangeOverlap overlap;
-
-  struct {
-    GcalRange *range;
-    gboolean has_entries;
-  } *gather_data = user_data;
-
-  overlap = gcal_range_calculate_overlap (range, gather_data->range, &position);
-
-  if (overlap == GCAL_RANGE_NO_OVERLAP)
-    {
-      if (position == GCAL_RANGE_BEFORE)
-        return GCAL_TRAVERSE_CONTINUE;
-      if (position == GCAL_RANGE_AFTER)
-        return GCAL_TRAVERSE_STOP;
-    }
-
-  gather_data->has_entries = TRUE;
-
-  return GCAL_TRAVERSE_STOP;
-}
-
-static inline gboolean
 remove_data_func (GcalRange *range,
                   gpointer   data,
                   gpointer   user_data)
@@ -745,23 +717,6 @@ gcal_range_tree_get_data_at_range (GcalRangeTree *self,
   gcal_range_tree_traverse (self, G_IN_ORDER, gather_data_at_range, &gather_data);
 
   return data;
-}
-
-gboolean
-gcal_range_tree_has_entries_at_range (GcalRangeTree *self,
-                                      GcalRange     *range)
-{
-  struct {
-    GcalRange *range;
-    gboolean has_entry;
-  } gather_data = { range, FALSE };
-
-  g_return_val_if_fail (self, FALSE);
-  g_return_val_if_fail (range, FALSE);
-
-  gcal_range_tree_traverse (self, G_IN_ORDER, has_entries_at_range, &gather_data);
-
-  return gather_data.has_entry;
 }
 
 /**

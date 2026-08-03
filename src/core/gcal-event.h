@@ -97,9 +97,6 @@ void                 gcal_event_remove_all_alarms                (GcalEvent     
 void                 gcal_event_add_alarm                        (GcalEvent          *self,
                                                                   ECalComponentAlarm *alarm);
 
-void                 gcal_event_remove_alarm                     (GcalEvent          *self,
-                                                                  guint               type);
-
 const gchar*         gcal_event_get_location                     (GcalEvent          *self);
 
 void                 gcal_event_set_location                     (GcalEvent          *self,
@@ -141,15 +138,6 @@ gboolean             gcal_event_overlaps                         (GcalEvent     
 GListModel *         gcal_event_get_attendees                    (GcalEvent          *self);
 
 GcalEventOrganizer * gcal_event_get_organizer                    (GcalEvent          *self);
-
-gboolean             gcal_event_alarms_equal                     (GcalEvent          *event1,
-                                                                  GcalEvent          *event2);
-
-gboolean             gcal_event_schedule_equal                   (GcalEvent          *event1,
-                                                                  GcalEvent          *event2);
-
-gboolean             gcal_event_strings_equal                    (GcalEvent          *event1,
-                                                                  GcalEvent          *event2);
 
 G_END_DECLS
 

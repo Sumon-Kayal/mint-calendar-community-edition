@@ -24,6 +24,7 @@
 
 #include "gcal-fading-label.h"
 #include "gcal-application.h"
+#include "gcal-context.h"
 #include "gcal-clock.h"
 #include "gcal-debug.h"
 #include "gcal-event-popover.h"
@@ -71,19 +72,20 @@ struct _GcalEventWidget
 
   GcalTimestampPolicy timestamp_policy;
 
-  GSignalGroup       *clock_signal_group;
-  GSignalGroup       *context_signal_group;
-  GSignalGroup       *event_signal_group;
+  gint                old_width;
+  gint                old_height;
+
+  GcalContext        *context;
 };
 
 enum
 {
   PROP_0,
+  PROP_CONTEXT,
   PROP_EVENT,
   PROP_TIMESTAMP_POLICY,
-  N_PROPS,
-
   PROP_ORIENTATION,
+  NUM_PROPS
 };
 
 enum
@@ -100,7 +102,11 @@ typedef enum
 } CursorType;
 
 static guint signals[NUM_SIGNALS] = { 0, };
-static GParamSpec *properties[N_PROPS] = { NULL, };
+
+static gboolean read_only_to_propagation_phase_cb (GBinding     *binding,
+                                                   const GValue *from_value,
+                                                   GValue       *to_value,
+                                                   gpointer      user_data);
 
 G_DEFINE_TYPE_WITH_CODE (GcalEventWidget, gcal_event_widget, GTK_TYPE_WIDGET,
                          G_IMPLEMENT_INTERFACE (GTK_TYPE_ORIENTABLE, NULL));
@@ -244,7 +250,6 @@ gcal_event_widget_set_event_tooltip (GcalEventWidget *self,
   GString *tooltip_mesg;
   gboolean allday, multiday, is_ltr;
   guint description_len;
-  GcalContext *context;
 
   tooltip_mesg = g_string_new (NULL);
   escaped_summary = g_markup_escape_text (gcal_event_get_summary (event), -1);
@@ -274,13 +279,12 @@ gcal_event_widget_set_event_tooltip (GcalEventWidget *self,
     }
   else
     {
-      context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
       tooltip_start = g_date_time_to_local (gcal_event_get_date_start (event));
       tooltip_end = g_date_time_to_local (gcal_event_get_date_end (event));
 
       if (multiday)
         {
-          switch (gcal_context_get_time_format (context))
+          switch (gcal_context_get_time_format (self->context))
             {
             case GCAL_TIME_FORMAT_24H:
               if (is_ltr)
@@ -311,7 +315,7 @@ gcal_event_widget_set_event_tooltip (GcalEventWidget *self,
         }
       else
         {
-          switch (gcal_context_get_time_format (context))
+          switch (gcal_context_get_time_format (self->context))
             {
             case GCAL_TIME_FORMAT_24H:
               if (is_ltr)
@@ -389,8 +393,7 @@ gcal_event_widget_set_event_tooltip (GcalEventWidget *self,
 
               if (truncated_location->len > LOCATION_MAX_LEN)
                 {
-                  char *cut = g_utf8_offset_to_pointer (truncated_location->str, LOCATION_MAX_LEN - 1);
-                  g_string_truncate (truncated_location, cut - truncated_location->str);
+                  g_string_truncate (truncated_location, LOCATION_MAX_LEN - 1);
                   g_string_append (truncated_location, "…");
                 }
 
@@ -422,8 +425,7 @@ gcal_event_widget_set_event_tooltip (GcalEventWidget *self,
       /* If the description is larger than DESC_MAX_CHAR, ellipsize it */
       if (description_len > DESC_MAX_CHAR)
         {
-          char *cut = g_utf8_offset_to_pointer (tooltip_desc->str, DESC_MAX_CHAR - 1);
-          g_string_truncate (tooltip_desc, cut - tooltip_desc->str);
+          g_string_truncate (tooltip_desc, DESC_MAX_CHAR - 1);
           g_string_append (tooltip_desc, "…");
         }
 
@@ -443,11 +445,10 @@ static void
 gcal_event_widget_update_timestamp (GcalEventWidget *self)
 {
   g_autofree gchar *timestamp_str = NULL;
-  GcalContext *context;
 
-  if (self->event && self->timestamp_policy != GCAL_TIMESTAMP_POLICY_NONE)
+  if (GCAL_IS_EVENT (self->event) &&
+      self->timestamp_policy != GCAL_TIMESTAMP_POLICY_NONE)
     {
-      context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
       g_autoptr (GDateTime) time = NULL;
 
       if (self->timestamp_policy == GCAL_TIMESTAMP_POLICY_START)
@@ -463,7 +464,7 @@ gcal_event_widget_update_timestamp (GcalEventWidget *self)
          * https://docs.gtk.org/glib/method.DateTime.format.html
          */
         timestamp_str = g_date_time_format (time, _("%a %B %d"));
-      else if (gcal_context_get_time_format (context) == GCAL_TIME_FORMAT_24H)
+      else if (gcal_context_get_time_format (self->context) == GCAL_TIME_FORMAT_24H)
         timestamp_str = g_date_time_format (time, "%R");
       else
         timestamp_str = g_date_time_format (time, "%I:%M %P");
@@ -471,6 +472,75 @@ gcal_event_widget_update_timestamp (GcalEventWidget *self)
 
   gtk_widget_set_visible (self->timestamp_label, timestamp_str != NULL);
   gtk_label_set_label (GTK_LABEL (self->timestamp_label), timestamp_str);
+}
+
+static void
+gcal_event_widget_set_event_internal (GcalEventWidget *self,
+                                      GcalEvent       *event)
+{
+  /*
+   * This function is called only once, since the property is
+   * set as CONSTRUCT_ONLY. Any other attempt to set an event
+   * will be ignored.
+   *
+   * Because of that condition, we don't really have to care about
+   * disconnecting functions or cleaning up the previous event.
+   */
+
+  /* The event spawns with a floating reference, and we take it's ownership */
+  g_set_object (&self->event, event);
+
+  /*
+   * Initially, the widget's start and end dates are the same
+   * of the event's ones. We may change it afterwards.
+   */
+  gcal_event_widget_set_date_start (self, gcal_event_get_date_start (event));
+  gcal_event_widget_set_date_end (self, gcal_event_get_date_end (event));
+
+  /* Update color */
+  update_color (self);
+
+  g_signal_connect_object (event,
+                           "notify::color",
+                           G_CALLBACK (update_color),
+                           self,
+                           G_CONNECT_SWAPPED);
+
+  g_signal_connect_object (event,
+                           "notify::summary",
+                           G_CALLBACK (gtk_widget_queue_draw),
+                           self,
+                           G_CONNECT_SWAPPED);
+
+  g_signal_connect_object (self->context,
+                           "notify::time-format",
+                           G_CALLBACK (gcal_event_widget_update_timestamp),
+                           self,
+                           G_CONNECT_SWAPPED);
+
+
+  /* Tooltip */
+  gcal_event_widget_set_event_tooltip (self, event);
+
+  /* Summary label */
+  g_object_bind_property (event,
+                          "summary",
+                          self->summary_label,
+                          "label",
+                          G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+
+  g_object_bind_property_full (gcal_event_get_calendar (event),
+                               "read-only",
+                               self->drag_source,
+                               "propagation-phase",
+                               G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE,
+                               read_only_to_propagation_phase_cb,
+                               NULL,
+                               self,
+                               NULL);
+
+  gcal_event_widget_update_style (self);
+  gcal_event_widget_update_timestamp (self);
 }
 
 static void
@@ -568,12 +638,22 @@ on_event_popover_edit_cb (GtkWidget   *event_popover,
   reply_preview_callback (event_popover, data, GCAL_EVENT_PREVIEW_ACTION_EDIT);
 }
 
-static GtkPropagationPhase
-read_only_to_propagation_phase_cb (gpointer source_object,
-                                   gboolean read_only,
-                                   gpointer user_data)
+static gboolean
+read_only_to_propagation_phase_cb (GBinding     *binding,
+                                   const GValue *from_value,
+                                   GValue       *to_value,
+                                   gpointer      user_data)
 {
-  return read_only ? GTK_PHASE_NONE : GTK_PHASE_BUBBLE;
+  GtkPropagationPhase phase;
+
+  if (g_value_get_boolean (from_value))
+    phase = GTK_PHASE_NONE;
+  else
+    phase = GTK_PHASE_BUBBLE;
+
+  g_value_set_enum (to_value, phase);
+
+  return TRUE;
 }
 
 
@@ -591,8 +671,19 @@ gcal_event_widget_set_property (GObject      *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      g_signal_connect_object (gcal_context_get_clock (self->context),
+                               "minute-changed",
+                               G_CALLBACK (update_color),
+                               self,
+                               G_CONNECT_SWAPPED);
+      break;
+
     case PROP_EVENT:
-      gcal_event_widget_set_event (self, g_value_get_object (value));
+      gcal_event_widget_set_event_internal (self, g_value_get_object (value));
       break;
 
     case PROP_TIMESTAMP_POLICY:
@@ -622,6 +713,10 @@ gcal_event_widget_get_property (GObject      *object,
 
   switch (property_id)
     {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
     case PROP_EVENT:
       g_value_set_object (value, self->event);
       break;
@@ -644,10 +739,6 @@ gcal_event_widget_dispose (GObject *object)
 {
   GcalEventWidget *self = GCAL_EVENT_WIDGET (object);
 
-  g_clear_object (&self->clock_signal_group);
-  g_clear_object (&self->context_signal_group);
-  g_clear_object (&self->event_signal_group);
-
   g_clear_pointer (&self->preview_popover, gtk_widget_unparent);
   g_clear_pointer (&self->overflow_bin, gtk_widget_unparent);
   g_clear_pointer (&self->edge, gtk_widget_unparent);
@@ -662,9 +753,11 @@ gcal_event_widget_finalize (GObject *object)
 
   self = GCAL_EVENT_WIDGET (object);
 
+
   /* releasing properties */
   g_clear_pointer (&self->css_class, g_free);
   g_clear_object (&self->event);
+  g_clear_object (&self->context);
 
   G_OBJECT_CLASS (gcal_event_widget_parent_class)->finalize (object);
 }
@@ -683,13 +776,30 @@ gcal_event_widget_class_init (GcalEventWidgetClass *klass)
   object_class->finalize = gcal_event_widget_finalize;
 
   /**
+   * GcalEventWidget::context:
+   *
+   * The context of the event.
+   */
+  g_object_class_install_property (object_class,
+                                   PROP_CONTEXT,
+                                   g_param_spec_object ("context",
+                                                        "Context",
+                                                        "Context",
+                                                        GCAL_TYPE_CONTEXT,
+                                                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS));
+
+  /**
    * GcalEventWidget::event:
    *
    * The event this widget represents.
    */
-  properties[PROP_EVENT] = g_param_spec_object ("event", NULL, NULL,
-                                                GCAL_TYPE_EVENT,
-                                                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+  g_object_class_install_property (object_class,
+                                   PROP_EVENT,
+                                   g_param_spec_object ("event",
+                                                        "Event",
+                                                        "The event this widget represents",
+                                                        GCAL_TYPE_EVENT,
+                                                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
    * GcalEventWidget::timestamp-policy:
@@ -699,12 +809,14 @@ gcal_event_widget_class_init (GcalEventWidgetClass *klass)
    * Whether to show the start time, end time, or no time for the
    * event. Depending on the event's kind, it will be an hour or a day.
    */
-  properties[PROP_TIMESTAMP_POLICY] = g_param_spec_enum ("timestamp-policy", NULL, NULL,
-                                                         GCAL_TYPE_TIMESTAMP_POLICY,
-                                                         GCAL_TIMESTAMP_POLICY_NONE,
-                                                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-
-  g_object_class_install_properties (object_class, N_PROPS, properties);
+  g_object_class_install_property (object_class,
+                                   PROP_TIMESTAMP_POLICY,
+                                   g_param_spec_enum ("timestamp-policy",
+                                                      "Timestamp Policy",
+                                                      "The policy for this widget's timestamp",
+                                                      GCAL_TYPE_TIMESTAMP_POLICY,
+                                                      GCAL_TIMESTAMP_POLICY_NONE,
+                                                      G_PARAM_READWRITE));
 
   /**
    * GcalEventWidget::orientation:
@@ -713,7 +825,18 @@ gcal_event_widget_class_init (GcalEventWidgetClass *klass)
    */
   g_object_class_override_property (object_class, PROP_ORIENTATION, "orientation");
 
-  signals[ACTIVATE] = gcal_create_activate_signal_and_shortcuts (widget_class, GCAL_TYPE_EVENT_WIDGET);
+  signals[ACTIVATE] = g_signal_new ("activate",
+                                     GCAL_TYPE_EVENT_WIDGET,
+                                     G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION,
+                                     0,
+                                     NULL, NULL,
+                                     g_cclosure_marshal_VOID__VOID,
+                                     G_TYPE_NONE,
+                                     0);
+
+  gtk_widget_class_set_activate_signal (widget_class, signals[ACTIVATE]);
+
+  gcal_utils_add_activate_shortcuts (widget_class);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/gcal-event-widget.ui");
 
@@ -729,7 +852,6 @@ gcal_event_widget_class_init (GcalEventWidgetClass *klass)
   gtk_widget_class_bind_template_callback (widget_class, on_click_gesture_release_cb);
   gtk_widget_class_bind_template_callback (widget_class, on_drag_source_begin_cb);
   gtk_widget_class_bind_template_callback (widget_class, on_drag_source_prepare_cb);
-  gtk_widget_class_bind_template_callback (widget_class, read_only_to_propagation_phase_cb);
 
   gtk_widget_class_set_css_name (widget_class, "event");
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_TOGGLE_BUTTON);
@@ -753,32 +875,14 @@ gcal_event_widget_init (GcalEventWidget *self)
   gtk_accessible_update_state (GTK_ACCESSIBLE (self),
                                GTK_ACCESSIBLE_STATE_PRESSED, FALSE,
                                -1);
-
-  self->clock_signal_group = g_signal_group_new (GCAL_TYPE_CLOCK);
-  g_signal_group_connect_swapped (self->clock_signal_group,
-                                  "minute-changed",
-                                  G_CALLBACK (update_color),
-                                  self);
-
-  self->context_signal_group = g_signal_group_new (GCAL_TYPE_CONTEXT);
-  g_signal_group_connect_swapped (self->context_signal_group,
-                                  "notify::time-format",
-                                  G_CALLBACK (gcal_event_widget_update_timestamp),
-                                  self);
-
-  self->event_signal_group = g_signal_group_new (GCAL_TYPE_EVENT);
-  g_signal_group_connect_swapped (self->event_signal_group,
-                                  "notify::color",
-                                  G_CALLBACK (update_color),
-                                  self);
-
-
 }
 
 GtkWidget*
-gcal_event_widget_new (GcalEvent   *event)
+gcal_event_widget_new (GcalContext *context,
+                       GcalEvent   *event)
 {
   return g_object_new (GCAL_TYPE_EVENT_WIDGET,
+                       "context", context,
                        "event", event,
                        NULL);
 }
@@ -908,7 +1012,7 @@ gcal_event_widget_set_timestamp_policy (GcalEventWidget     *self,
 
       gcal_event_widget_update_timestamp (self);
 
-      g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_TIMESTAMP_POLICY]);
+      g_object_notify (G_OBJECT (self), "timestamp-policy");
     }
 }
 
@@ -938,7 +1042,7 @@ gcal_event_widget_show_preview (GcalEventWidget          *self,
   data->callback = callback;
   data->user_data = user_data;
 
-  self->preview_popover = gcal_event_popover_new (self->event);
+  self->preview_popover = gcal_event_popover_new (self->context, self->event);
   g_object_add_weak_pointer (G_OBJECT (self->preview_popover), (gpointer *) &self->preview_popover);
 
   gtk_widget_set_parent (self->preview_popover, GTK_WIDGET (self));
@@ -968,52 +1072,10 @@ gcal_event_widget_get_event (GcalEventWidget *self)
   return self->event;
 }
 
-/**
- * gcal_event_widget_set_event:
- * @event: (nullable)(transfer none): the event
- *
- * Sets the event of this widget to @event.
- */
-void
-gcal_event_widget_set_event (GcalEventWidget *self,
-                             GcalEvent       *event)
-{
-  g_assert (GCAL_IS_EVENT_WIDGET (self));
-  g_assert (event == NULL || GCAL_IS_EVENT (event));
-
-  if (!g_set_object (&self->event, event))
-    return;
-
-  if (event)
-    {
-      GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-
-      gcal_event_widget_set_date_start (self, gcal_event_get_date_start (event));
-      gcal_event_widget_set_date_end (self, gcal_event_get_date_end (event));
-
-      g_signal_group_set_target (self->context_signal_group, context);
-      g_signal_group_set_target (self->clock_signal_group, gcal_context_get_clock (context));
-      g_signal_group_set_target (self->event_signal_group, event);
-
-      update_color (self);
-      gcal_event_widget_set_event_tooltip (self, event);
-      gcal_event_widget_update_style (self);
-      gcal_event_widget_update_timestamp (self);
-    }
-  else
-    {
-      g_signal_group_set_target (self->context_signal_group, NULL);
-      g_signal_group_set_target (self->clock_signal_group, NULL);
-      g_signal_group_set_target (self->event_signal_group, NULL);
-    }
-
-  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_EVENT]);
-}
-
 GtkWidget*
 gcal_event_widget_clone (GcalEventWidget *widget)
 {
-  return gcal_event_widget_new (widget->event);
+  return gcal_event_widget_new (widget->context, widget->event);
 }
 
 /**

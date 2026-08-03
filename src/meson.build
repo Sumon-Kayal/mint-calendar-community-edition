@@ -59,7 +59,6 @@ calendar_incs = [
 
 sources = files()
 subdir('appdata')
-subdir('contrib')
 subdir('core')
 subdir('gui')
 subdir('search')

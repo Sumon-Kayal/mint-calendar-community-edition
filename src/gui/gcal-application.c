@@ -153,9 +153,6 @@ build_system_information (void)
   g_string_append_printf (str, "GNOME Calendar (`%s`)\n\n", VERSION);
 
   g_string_append_printf (str,
-                          "* Flatpak: %s\n",
-                          g_file_test ("/.flatpak-info", G_FILE_TEST_EXISTS) ? "yes" : "no");
-  g_string_append_printf (str,
                           "* GLib: %d.%d.%d (%d.%d.%d)\n",
                           glib_major_version,
                           glib_minor_version,
@@ -326,6 +323,7 @@ gcal_application_activate (GApplication *application)
 
       self->window =  g_object_new (GCAL_TYPE_WINDOW,
                                     "application", self,
+                                    "context", self->context,
                                     "active-date", self->initial_date,
                                     NULL);
 
@@ -385,24 +383,6 @@ gcal_application_startup (GApplication *app)
 
   /* Startup the manager */
   gcal_context_startup (self->context);
-
-  GCAL_EXIT;
-}
-
-static void
-gcal_application_shutdown (GApplication *app)
-{
-  GcalApplication *self;
-  GcalWeatherService *weather_service;
-
-  GCAL_ENTRY;
-
-  self = GCAL_APPLICATION (app);
-
-  weather_service = gcal_context_get_weather_service (self->context);
-  gcal_weather_service_stop (weather_service);
-
-  G_APPLICATION_CLASS (gcal_application_parent_class)->shutdown (app);
 
   GCAL_EXIT;
 }
@@ -532,8 +512,6 @@ gcal_application_dbus_register (GApplication     *application,
 
   self = GCAL_APPLICATION (application);
 
-  self->search_provider = gcal_shell_search_provider_new ();
-
   if (!G_APPLICATION_CLASS (gcal_application_parent_class)->dbus_register (application, connection, object_path, error))
     GCAL_RETURN (FALSE);
 
@@ -596,7 +574,6 @@ gcal_application_class_init (GcalApplicationClass *klass)
   application_class = G_APPLICATION_CLASS (klass);
   application_class->activate = gcal_application_activate;
   application_class->startup = gcal_application_startup;
-  application_class->shutdown = gcal_application_shutdown;
   application_class->command_line = gcal_application_command_line;
   application_class->open = gcal_application_open;
   application_class->handle_local_options = gcal_application_handle_local_options;
@@ -624,6 +601,7 @@ gcal_application_init (GcalApplication *self)
   g_application_add_main_option_entries (G_APPLICATION (self), gcal_application_goptions);
 
   self->context = gcal_context_new ();
+  self->search_provider = gcal_shell_search_provider_new (self->context);
 }
 
 /* Public API */

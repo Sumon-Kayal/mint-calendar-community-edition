@@ -46,6 +46,7 @@ struct _GcalWeekView
 
   /* property */
   GDateTime          *date;
+  GcalContext        *context;
 
   guint               scroll_grid_timeout_id;
   gulong              stack_page_changed_id;
@@ -73,6 +74,7 @@ enum
 {
   PROP_0,
   PROP_DATE,
+  PROP_CONTEXT,
   PROP_TIME_DIRECTION,
   NUM_PROPS
 };
@@ -207,18 +209,22 @@ apply_zoom (GcalWeekView *self,
 static void
 save_zoom_level (GcalWeekView *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  GSettings *settings = gcal_context_get_settings (context);
+  GSettings *settings;
 
+  g_assert (self->context != NULL);
+
+  settings = gcal_context_get_settings (self->context);
   g_settings_set_double (settings, "week-view-zoom-level", self->zoom_level);
 }
 
 static void
 restore_zoom_level (GcalWeekView *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  GSettings *settings = gcal_context_get_settings (context);
+  GSettings *settings;
 
+  g_assert (self->context != NULL);
+
+  settings = gcal_context_get_settings (self->context);
   self->zoom_level = g_settings_get_double (settings, "week-view-zoom-level");
 
   begin_zoom (self, 0);
@@ -491,17 +497,51 @@ gcal_week_view_get_range (GcalTimelineSubscriber *subscriber)
 }
 
 static void
-gcal_week_view_set_model (GcalTimelineSubscriber *subscriber,
-                          GListModel             *model)
+gcal_week_view_add_event (GcalTimelineSubscriber *subscriber,
+                          GcalEvent              *event)
 {
-  GcalWeekView *self;
+  GcalWeekView *self = GCAL_WEEK_VIEW (subscriber);
 
   GCAL_ENTRY;
 
-  self = GCAL_WEEK_VIEW (subscriber);
+  if (gcal_event_is_multiday (event) || gcal_event_get_all_day (event))
+    gcal_week_header_add_event (GCAL_WEEK_HEADER (self->header), event);
+  else
+    gcal_week_grid_add_event (GCAL_WEEK_GRID (self->week_grid), event);
 
-  gcal_week_header_set_model (GCAL_WEEK_HEADER (self->header), model);
-  gcal_week_grid_set_model (GCAL_WEEK_GRID (self->week_grid), model);
+  GCAL_EXIT;
+}
+
+static void
+gcal_week_view_update_event (GcalTimelineSubscriber *subscriber,
+                             GcalEvent              *old_event,
+                             GcalEvent              *event)
+{
+  GcalWeekView *self = GCAL_WEEK_VIEW (subscriber);
+  const gchar *event_id;
+
+  GCAL_ENTRY;
+
+  event_id = gcal_event_get_uid (old_event);
+  gcal_week_header_remove_event (GCAL_WEEK_HEADER (self->header), event_id);
+  gcal_week_grid_remove_event (GCAL_WEEK_GRID (self->week_grid), event_id);
+
+  gcal_week_view_add_event (subscriber, event);
+
+  GCAL_EXIT;
+}
+
+static void
+gcal_week_view_remove_event (GcalTimelineSubscriber *subscriber,
+                             GcalEvent              *event)
+{
+  GcalWeekView *self = GCAL_WEEK_VIEW (subscriber);
+  const gchar *uuid = gcal_event_get_uid (event);
+
+  GCAL_ENTRY;
+
+  gcal_week_header_remove_event (GCAL_WEEK_HEADER (self->header), uuid);
+  gcal_week_grid_remove_event (GCAL_WEEK_GRID (self->week_grid), uuid);
 
   GCAL_EXIT;
 }
@@ -510,7 +550,9 @@ static void
 gcal_timeline_subscriber_interface_init (GcalTimelineSubscriberInterface *iface)
 {
   iface->get_range = gcal_week_view_get_range;
-  iface->set_model = gcal_week_view_set_model;
+  iface->add_event = gcal_week_view_add_event;
+  iface->update_event = gcal_week_view_update_event;
+  iface->remove_event = gcal_week_view_remove_event;
 }
 
 
@@ -527,6 +569,8 @@ gcal_week_view_finalize (GObject       *object)
 
   g_clear_pointer (&self->date, g_date_time_unref);
 
+  g_clear_object (&self->context);
+
   /* Chain up to parent's finalize() method. */
   G_OBJECT_CLASS (gcal_week_view_parent_class)->finalize (object);
 }
@@ -537,10 +581,22 @@ gcal_week_view_set_property (GObject       *object,
                              const GValue  *value,
                              GParamSpec    *pspec)
 {
+  GcalWeekView *self = (GcalWeekView *) object;
+
   switch (property_id)
     {
     case PROP_DATE:
       gcal_view_set_date (GCAL_VIEW (object), g_value_get_boxed (value));
+      break;
+
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      gcal_week_grid_set_context (GCAL_WEEK_GRID (self->week_grid), self->context);
+      gcal_week_header_set_context (GCAL_WEEK_HEADER (self->header), self->context);
+      gcal_week_hour_bar_set_context (self->hours_bar, self->context);
+      restore_zoom_level (self);
       break;
 
     default:
@@ -564,6 +620,10 @@ gcal_week_view_get_property (GObject       *object,
     {
     case PROP_DATE:
       g_value_set_boxed (value, self->date);
+      break;
+
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
       break;
 
     case PROP_TIME_DIRECTION:
@@ -591,6 +651,7 @@ gcal_week_view_class_init (GcalWeekViewClass *klass)
   object_class->get_property = gcal_week_view_get_property;
 
   g_object_class_override_property (object_class, PROP_DATE, "active-date");
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
   g_object_class_override_property (object_class, PROP_TIME_DIRECTION, "time-direction");
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/views/gcal-week-view.ui");
@@ -624,7 +685,5 @@ gcal_week_view_init (GcalWeekView *self)
   self->zoom_level = 1.0;
 
   gtk_widget_set_size_request (self->content, -1, HEIGHT_DEFAULT);
-
-  restore_zoom_level (self);
 }
 

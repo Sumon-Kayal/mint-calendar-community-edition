@@ -142,13 +142,6 @@ datechooser .weeknum {
   background-color: rgb(from var(--base-color) r g b / 5%);
   color: var(--base-color);
 }
-/* high contrast */
-@media (prefers-contrast: more) {
-  datechooser .weeknum {
-    --border-width: 1px;
-    --base-color: var(--window-fg-color);
-  }
-}
 
 /* day names */
 datechooser .weekday {
@@ -384,13 +377,6 @@ calendar-view.month-view {
     inset 0 -1px var(--raised-shade-color, var(--raised-shade-color-base)),
     inset 0 -2px 4px var(--raised-shade-color-base);
 }
-/* high contrast */
-@media (prefers-contrast: more) {
-  calendar-view.month-view {
-    --raised-shade-color: var(--border-color);
-    --raised-shade-color-base: transparent;
-  }
-}
 
 calendar-view.month-view > box.month-header {
   padding-bottom: 6px;
@@ -420,24 +406,16 @@ monthpopover > box {
 
 /* Agenda View CSS */
 
-agenda-view listview > row {
-  background: none;
-}
-
-agenda-view agendaviewdayrow {
+agenda-view list > row {
+  padding: 3px;
   margin-left: 9px;
   margin-right: 9px;
-  margin-bottom: 3px;
-}
-
-agenda-view agendaviewdayrow > box > label {
-  padding: 6px 0;
-}
-
-agenda-view agendaviewdayrow list > row,
-agenda-view agendaviewdayrow list > label {
   border-radius: 6px;
   background: none;
+}
+
+agenda-view list > label {
+  padding: 6px 12px;
 }
 
 .sidebar-pane agenda-view .background {
@@ -460,12 +438,6 @@ searchbutton > popover > arrow {
 
 searchbutton > popover listview > row:selected {
   background-color: rgb(from var(--accent-bg-color) r g b / 11%);
-}
-/* dark mode */
-@media (prefers-color-scheme: dark) {
-  searchbutton > popover listview > row:selected {
-    background-color: rgb(from var(--accent-bg-color) r g b / 20%);
-  }
 }
 
 /*
