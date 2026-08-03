@@ -1,7 +1,7 @@
 <div align="center">
   <img src="data/icons/hicolor/scalable/apps/org.mint.calender.community.edition.svg" width="128" height="128">
 
-  # Mint Calendar (Community Edition) v1.0
+# Mint Calendar (Community Edition) v1.0
 
   Using the latest stable GNOME release as a base, with patches from Linux Mint's version of
   GNOME Calendar applied on top.
