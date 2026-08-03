@@ -1,7 +1,7 @@
 project(
   'gnome-calendar',
                'c',
-           version: '51.beta',
+           version: '1.0',
            license: 'GPL3+',
      meson_version: '>= 0.58.0'
 )
@@ -46,9 +46,9 @@ else
 endif
 
 if profile == ''
-  application_id = 'org.mint.calender.community.edition'
+  application_id = 'org.mint.calendar.community.edition'
 else
-  application_id = 'org.mint.calender.community.edition.@0@'.format(profile)
+  application_id = 'org.mint.calendar.community.edition.@0@'.format(profile)
 endif
 calendar_buildtype = get_option('buildtype')
 development_release = calendar_minor_version.startswith('alpha') or \
