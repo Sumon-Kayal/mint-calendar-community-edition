@@ -6,7 +6,7 @@
   Using the latest stable GNOME release as a base, with patches from Linux Mint's version of
   GNOME Calendar applied on top.
 
-  <img width="922" src="https://static.gnome.org/appdata/gnome-50/org.gnome.Calendar/month-view.png">
+  <img width="922" alt="Mint Calendar month view" src="https://static.gnome.org/appdata/gnome-50/org.gnome.Calendar/month-view.png">
 </div>
 
 A community-maintained, Linux Mint-flavored fork of [GNOME Calendar](https://apps.gnome.org/Calendar/),
