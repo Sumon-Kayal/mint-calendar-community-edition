@@ -109,9 +109,7 @@ gcal_search_engine_finalize (GObject *object)
 {
   GcalSearchEngine *self = (GcalSearchEngine *)object;
 
-  if (self->context)
-    g_object_remove_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
-
+  g_clear_object (&self->context);
   g_clear_object (&self->timeline);
 
   G_OBJECT_CLASS (gcal_search_engine_parent_class)->finalize (object);
@@ -129,7 +127,6 @@ gcal_search_engine_constructed (GObject *object)
   self->timeline = gcal_timeline_new (self->context);
 
   manager = gcal_context_get_manager (self->context);
-  g_assert (manager != NULL);
   g_signal_connect_object (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self, 0);
   g_signal_connect_object (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self, 0);
 }
@@ -165,8 +162,7 @@ gcal_search_engine_set_property (GObject      *object,
     {
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
-      self->context = g_value_get_object (value);
-      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
+      self->context = g_value_dup_object (value);
       break;
 
     default:

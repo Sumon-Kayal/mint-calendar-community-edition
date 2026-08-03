@@ -114,10 +114,8 @@ search_hits_equals_cb (gconstpointer a,
 {
   GcalSearchHit *search_hit_a = GCAL_SEARCH_HIT ((gpointer) a);
   GcalSearchHit *search_hit_b = GCAL_SEARCH_HIT ((gpointer) b);
-  GcalEvent *event_a = gcal_search_hit_get_event (search_hit_a);
-  GcalEvent *event_b = gcal_search_hit_get_event (search_hit_b);
 
-  return g_strcmp0 (gcal_event_get_uid (event_a), gcal_event_get_uid (event_b)) == 0;
+  return gcal_search_hit_compare (search_hit_a, search_hit_b) == 0;
 }
 
 static void
@@ -176,29 +174,12 @@ gcal_search_model_update_event (GcalTimelineSubscriber *subscriber,
                                 GcalEvent              *old_event,
                                 GcalEvent              *event)
 {
-  GcalSearchModel *self = GCAL_SEARCH_MODEL (subscriber);
-
-  gcal_search_model_remove_event (subscriber, old_event);
-  gcal_search_model_add_event (subscriber, event);
 }
 
 static void
 gcal_search_model_remove_event (GcalTimelineSubscriber *subscriber,
                                 GcalEvent              *event)
 {
-  GcalSearchModel *self = GCAL_SEARCH_MODEL (subscriber);
-  g_autoptr (GcalSearchHit) search_hit = NULL;
-  guint position;
-
-  search_hit = GCAL_SEARCH_HIT (gcal_search_hit_event_new (event));
-
-  if (g_list_store_find_with_equal_func (G_LIST_STORE (self->model),
-                                          search_hit,
-                                          (GEqualFunc) search_hits_equals_cb,
-                                          &position))
-    {
-      g_list_store_remove (G_LIST_STORE (self->model), position);
-    }
 }
 
 static void
