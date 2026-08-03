@@ -39,7 +39,7 @@ GcalContext *        gcal_month_view_row_get_context             (GcalMonthViewR
 void                 gcal_month_view_row_set_context             (GcalMonthViewRow   *self,
                                                                   GcalContext        *context);
 
-GcalRange *          gcal_month_view_row_get_range               (GcalMonthViewRow   *self);
+GcalRange *          gcal_month_view_row_get_range               (GcalMonthViewRow   *self) G_GNUC_WARN_UNUSED_RESULT;
 
 void                 gcal_month_view_row_set_range               (GcalMonthViewRow   *self,
                                                                   GcalRange          *range);

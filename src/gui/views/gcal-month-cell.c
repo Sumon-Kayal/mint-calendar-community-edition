@@ -371,8 +371,12 @@ gcal_month_cell_dispose (GObject *object)
 {
   GcalMonthCell *self = (GcalMonthCell *)object;
 
-  GcalWeatherService *weather_service = gcal_context_get_weather_service (self->context);
-  gcal_weather_service_release (weather_service);
+  if (self->context)
+    {
+      GcalWeatherService *weather_service = gcal_context_get_weather_service (self->context);
+      if (weather_service)
+        gcal_weather_service_release (weather_service);
+    }
 
   gcal_clear_date_time (&self->date);
   g_clear_object (&self->context);
@@ -453,28 +457,7 @@ gcal_month_cell_class_init (GcalMonthCellClass *klass)
 
   gtk_widget_class_set_activate_signal (widget_class, signals[ACTIVATE]);
 
-  {
-    g_autoptr (GtkShortcutAction) activate_action = NULL;
-    const guint activate_keyvals[] = {
-      GDK_KEY_space,
-      GDK_KEY_KP_Space,
-      GDK_KEY_Return,
-      GDK_KEY_ISO_Enter,
-      GDK_KEY_KP_Enter,
-    };
-
-    activate_action = gtk_signal_action_new ("activate");
-
-    for (size_t i = 0; i < G_N_ELEMENTS (activate_keyvals); i++)
-      {
-        g_autoptr (GtkShortcut) activate_shortcut = NULL;
-
-        activate_shortcut = gtk_shortcut_new (gtk_keyval_trigger_new (activate_keyvals[i], 0),
-                                              g_object_ref (activate_action));
-
-        gtk_widget_class_add_shortcut (widget_class, activate_shortcut);
-      }
-  }
+  gcal_utils_add_activate_shortcuts (widget_class);
 
   properties[PROP_CONTEXT] = g_param_spec_object ("context",
                                                   "Context",
@@ -580,7 +563,21 @@ void
 gcal_month_cell_set_context (GcalMonthCell *self,
                              GcalContext   *context)
 {
+  GcalWeatherService *old_weather_service = NULL;
+  GcalWeatherService *new_weather_service = NULL;
+
   g_return_if_fail (GCAL_IS_MONTH_CELL (self));
+
+  if (!context)
+    return;
+
+  /* Release old weather service if we have an existing context */
+  if (self->context)
+    {
+      old_weather_service = gcal_context_get_weather_service (self->context);
+      if (old_weather_service)
+        gcal_weather_service_release (old_weather_service);
+    }
 
   if (!g_set_object (&self->context, context))
     return;
@@ -591,14 +588,16 @@ gcal_month_cell_set_context (GcalMonthCell *self,
                            self,
                            0);
 
-  g_signal_connect_object (gcal_context_get_weather_service (self->context),
-                           "weather-changed",
-                           G_CALLBACK (on_weather_service_weather_changed_cb),
-                           self,
-                           0);
-
-  GcalWeatherService *weather_service = gcal_context_get_weather_service (self->context);
-  gcal_weather_service_hold (weather_service);
+  new_weather_service = gcal_context_get_weather_service (self->context);
+  if (new_weather_service)
+    {
+      g_signal_connect_object (new_weather_service,
+                               "weather-changed",
+                               G_CALLBACK (on_weather_service_weather_changed_cb),
+                               self,
+                               0);
+      gcal_weather_service_hold (new_weather_service);
+    }
 
   update_weather (self);
 

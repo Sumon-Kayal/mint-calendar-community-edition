@@ -297,10 +297,14 @@ on_calendar_created_cb (GObject      *source_object,
   offline_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_OFFLINE);
   e_source_offline_set_stay_synchronized (offline_extension, TRUE);
 
-  /* And also make sure the source is periodically updated */
+  /* And also make sure the source is periodically updated, but only if not already configured */
   refresh_extension = e_source_get_extension (source, E_SOURCE_EXTENSION_REFRESH);
-  e_source_refresh_set_enabled (refresh_extension, TRUE);
-  e_source_refresh_set_interval_minutes (refresh_extension, 30);
+  if (!e_source_refresh_get_enabled (refresh_extension) &&
+      e_source_refresh_get_interval_minutes (refresh_extension) == 0)
+    {
+      e_source_refresh_set_enabled (refresh_extension, TRUE);
+      e_source_refresh_set_interval_minutes (refresh_extension, 30);
+    }
 
   e_source_registry_commit_source (self->source_registry,
                                    source,
@@ -1239,14 +1243,13 @@ gcal_manager_move_event_to_source (GcalManager *self,
 /**
  * gcal_manager_get_events:
  * @self: a #GcalManager
- * @start_date: the start of the dete range
- * @end_date: the end of the dete range
+ * @start_date: the start of the date range
+ * @end_date: the end of the date range
  *
- * Returns a list with #GcalEvent objects owned by the caller,
- * the list and the objects. The components inside the list are
- * owned by the caller as well.
+ * Returns a pointer array with #GcalEvent objects owned by the caller.
+ * Both the array and the events inside it are owned by the caller.
  *
- * Returns: (nullable)(transfer full)(content-type GcalEvent):a #GList
+ * Returns: (nullable) (transfer full) (element-type GcalEvent): a #GPtrArray
  */
 GPtrArray*
 gcal_manager_get_events (GcalManager *self,

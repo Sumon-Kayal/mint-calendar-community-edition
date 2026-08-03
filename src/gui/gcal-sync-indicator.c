@@ -158,7 +158,7 @@ gcal_sync_indicator_set_property (GObject      *object,
   switch (prop_id)
     {
     case PROP_CONTEXT:
-      g_assert (self->context == NULL);
+      g_return_if_fail (self->context == NULL);
       self->context = g_value_dup_object (value);
 
       g_signal_connect_object (gcal_context_get_manager (self->context),
@@ -192,7 +192,7 @@ gcal_sync_indicator_class_init (GcalSyncIndicatorClass *klass)
                                                   "Context of the application",
                                                   "The context of the application",
                                                   GCAL_TYPE_CONTEXT,
-                                                  G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_PROPS, properties);
 

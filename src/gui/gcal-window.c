@@ -622,8 +622,9 @@ on_window_new_event_cb (GSimpleAction *action,
   default_calendar = gcal_manager_get_default_calendar (manager);
   event = gcal_event_new (default_calendar, comp, NULL);
 
-  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
   gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
+  g_object_unref (event);
 }
 
 static void
@@ -861,8 +862,8 @@ edit_event (GcalQuickAddPopover *popover,
             GcalEvent           *event,
             GcalWindow          *self)
 {
-  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
   gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
 }
 
 static void
@@ -884,10 +885,11 @@ create_event_detailed_cb (GcalView   *view,
   default_calendar = gcal_manager_get_default_calendar (manager);
   event = gcal_event_new (default_calendar, comp, NULL);
 
-  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
   gcal_event_editor_dialog_set_event (self->event_editor, event, TRUE);
+  adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
 
   g_clear_object (&comp);
+  g_object_unref (event);
 }
 
 static void
@@ -902,8 +904,8 @@ event_preview_cb (GcalEventWidget        *event_widget,
     {
     case GCAL_EVENT_PREVIEW_ACTION_EDIT:
       event = gcal_event_widget_get_event (event_widget);
-      adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
       gcal_event_editor_dialog_set_event (self->event_editor, event, FALSE);
+      adw_dialog_present (ADW_DIALOG (self->event_editor), GTK_WIDGET (self));
       break;
 
     case GCAL_EVENT_PREVIEW_ACTION_NONE:
@@ -1224,11 +1226,14 @@ gcal_window_constructed (GObject *object)
   g_object_bind_property (self, "context", self->week_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
   g_object_bind_property (self, "context", self->month_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
   g_object_bind_property (self, "context", self->agenda_view, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
-  g_object_bind_property (self, "context", self->date_chooser, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
-  g_object_bind_property (self, "context", self->event_editor, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
   g_object_bind_property (self, "context", self->quick_add_popover, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
-  g_object_bind_property (self, "context", self->sync_indicator, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
   g_object_bind_property (self, "context", self->search_button, "context", G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+
+  g_settings_bind (gcal_context_get_settings (self->context),
+                   "active-view",
+                   self,
+                   "active-view",
+                   G_SETTINGS_BIND_SET | G_SETTINGS_BIND_GET);
 
   /* CSS */
   load_css_providers (self);
@@ -1271,13 +1276,6 @@ gcal_window_set_property (GObject      *object,
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
       self->context = g_value_dup_object (value);
-
-      g_settings_bind (gcal_context_get_settings (self->context),
-                       "active-view",
-                       self,
-                       "active-view",
-                       G_SETTINGS_BIND_SET | G_SETTINGS_BIND_GET);
-
       break;
 
     default:

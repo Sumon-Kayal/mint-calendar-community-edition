@@ -269,6 +269,9 @@ on_entry_search_changed_cb (GtkSearchEntry   *entry,
       GCAL_RETURN ();
     }
 
+  if (!self->context)
+    GCAL_RETURN ();
+
   g_debug ("Search query changed to \"%s\"", text);
 
   sexp_query = g_strdup_printf ("(contains? \"summary\" \"%s\")", text);
@@ -378,8 +381,12 @@ gcal_search_button_set_property (GObject      *object,
   switch (prop_id)
     {
     case PROP_CONTEXT:
-      g_assert (self->context == NULL);
-      self->context = g_value_dup_object (value);
+      {
+        GcalContext *new_context = g_value_get_object (value);
+
+        if (g_set_object (&self->context, new_context))
+          g_object_notify_by_pspec (object, pspec);
+      }
       break;
 
     default:

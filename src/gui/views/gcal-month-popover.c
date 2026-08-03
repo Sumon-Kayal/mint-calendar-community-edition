@@ -44,6 +44,8 @@ struct _GcalMonthPopover
   AdwAnimation       *animation;
 
   GSimpleActionGroup *action_group;
+
+  gboolean            event_list_needs_update;
 };
 
 static void          event_activated_cb                          (GcalEventWidget    *event_widget,
@@ -108,17 +110,41 @@ update_event_list (GcalMonthPopover *self)
       event = g_ptr_array_index (events, i);
 
       if (gcal_event_get_all_day (event))
-        tz = g_time_zone_new_utc ();
+        {
+          tz = g_time_zone_new_utc ();
+          event_start = g_date_time_new (tz,
+                                         g_date_time_get_year (start_dt),
+                                         g_date_time_get_month (start_dt),
+                                         g_date_time_get_day_of_month (start_dt),
+                                         0, 0, 0);
+          event_end = g_date_time_add_days (event_start, 1);
+        }
       else
-        tz = g_time_zone_new_local ();
+        {
+          g_autoptr (GDateTime) actual_start = gcal_event_get_date_start (event);
+          g_autoptr (GDateTime) actual_end = gcal_event_get_date_end (event);
+          g_autoptr (GDateTime) day_start = NULL;
+          g_autoptr (GDateTime) day_end = NULL;
 
-      event_start = g_date_time_new (tz,
-                                     g_date_time_get_year (start_dt),
-                                     g_date_time_get_month (start_dt),
-                                     g_date_time_get_day_of_month (start_dt),
-                                     0, 0, 0);
+          tz = g_time_zone_new_local ();
+          day_start = g_date_time_new (tz,
+                                       g_date_time_get_year (start_dt),
+                                       g_date_time_get_month (start_dt),
+                                       g_date_time_get_day_of_month (start_dt),
+                                       0, 0, 0);
+          day_end = g_date_time_add_days (day_start, 1);
 
-      event_end = g_date_time_add_days (event_start, 1);
+          /* Clamp timed event to the selected day */
+          if (g_date_time_compare (actual_start, day_start) >= 0)
+            event_start = g_date_time_ref (actual_start);
+          else
+            event_start = g_date_time_ref (day_start);
+
+          if (g_date_time_compare (actual_end, day_end) <= 0)
+            event_end = g_date_time_ref (actual_end);
+          else
+            event_end = g_date_time_ref (day_end);
+        }
 
       event_widget = gcal_event_widget_new (self->context, event);
       gtk_widget_set_focusable (event_widget, FALSE);
@@ -407,7 +433,12 @@ gcal_month_popover_set_property (GObject      *object,
   switch (prop_id)
     {
     case PROP_CONTEXT:
-      self->context = g_value_dup_object (value);
+      {
+        GcalContext *new_context = g_value_get_object (value);
+
+        if (g_set_object (&self->context, new_context))
+          g_object_notify_by_pspec (object, pspec);
+      }
       break;
 
     default:
@@ -420,6 +451,7 @@ gcal_month_popover_dispose (GObject *object)
 {
   GcalMonthPopover *self = (GcalMonthPopover *)object;
 
+  g_clear_object (&self->context);
   g_clear_pointer (&self->main_box, gtk_widget_unparent);
 
   g_clear_object (&self->action_group);
@@ -526,7 +558,11 @@ gcal_month_popover_popup (GcalMonthPopover *self)
   adw_timed_animation_set_easing (ADW_TIMED_ANIMATION (self->animation), ADW_EASE_OUT_EXPO);
   adw_animation_play (self->animation);
 
-  update_event_list (self);
+  if (self->event_list_needs_update)
+    {
+      update_event_list (self);
+      self->event_list_needs_update = FALSE;
+    }
 
   gtk_widget_grab_focus (GTK_WIDGET (self->new_event_button));
 
@@ -576,7 +612,7 @@ gcal_month_popover_set_date (GcalMonthPopover *self,
 
       label = g_strdup_printf ("%d", g_date_time_get_day_of_month (date));
       gtk_label_set_label (self->day_label, label);
-    }
 
-  update_event_list (self);
+      self->event_list_needs_update = TRUE;
+    }
 }

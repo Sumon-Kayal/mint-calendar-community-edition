@@ -839,28 +839,7 @@ gcal_event_widget_class_init (GcalEventWidgetClass *klass)
 
   gtk_widget_class_set_activate_signal (widget_class, signals[ACTIVATE]);
 
-  {
-    g_autoptr (GtkShortcutAction) activate_action = NULL;
-    const guint activate_keyvals[] = {
-      GDK_KEY_space,
-      GDK_KEY_KP_Space,
-      GDK_KEY_Return,
-      GDK_KEY_ISO_Enter,
-      GDK_KEY_KP_Enter,
-    };
-
-    activate_action = gtk_signal_action_new ("activate");
-
-    for (size_t i = 0; i < G_N_ELEMENTS (activate_keyvals); i++)
-      {
-        g_autoptr (GtkShortcut) activate_shortcut = NULL;
-
-        activate_shortcut = gtk_shortcut_new (gtk_keyval_trigger_new (activate_keyvals[i], 0),
-                                              g_object_ref (activate_action));
-
-        gtk_widget_class_add_shortcut (widget_class, activate_shortcut);
-      }
-  }
+  gcal_utils_add_activate_shortcuts (widget_class);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/gui/gcal-event-widget.ui");
 

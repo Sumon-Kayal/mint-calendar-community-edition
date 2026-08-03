@@ -293,7 +293,7 @@ activate_result_cb (GcalShellSearchProvider  *self,
                     guint32                   timestamp,
                     GcalShellSearchProvider2 *skel)
 {
-  g_autoptr (GcalEvent) event = NULL;
+  GcalEvent *event;
   GApplication *application;
   GDateTime *dtstart;
 
@@ -302,6 +302,9 @@ activate_result_cb (GcalShellSearchProvider  *self,
   application = g_application_get_default ();
 
   event = g_hash_table_lookup (self->events, result);
+  if (!event)
+    GCAL_RETURN (FALSE);
+
   dtstart = gcal_event_get_date_start (event);
 
   gcal_application_set_uuid (GCAL_APPLICATION (application), result);
@@ -371,12 +374,7 @@ on_timeline_completed_cb (GcalTimeline            *timeline,
 
       uid = gcal_event_get_uid (l->data);
 
-      if (g_hash_table_contains (self->events, uid))
-        continue;
-
       g_variant_builder_add (&builder, "s", uid);
-
-      g_hash_table_insert (self->events, g_strdup (uid), l->data);
     }
 
   g_dbus_method_invocation_return_value (self->pending_search->invocation, g_variant_new ("(as)", &builder));
@@ -446,6 +444,16 @@ gcal_shell_search_provider_update_event (GcalTimelineSubscriber *subscriber,
                                          GcalEvent              *old_event,
                                          GcalEvent              *event)
 {
+  GcalShellSearchProvider *self = GCAL_SHELL_SEARCH_PROVIDER (subscriber);
+  const gchar *uid;
+
+  GCAL_ENTRY;
+
+  uid = gcal_event_get_uid (event);
+  g_hash_table_remove (self->events, uid);
+  g_hash_table_insert (self->events, g_strdup (uid), g_object_ref (event));
+
+  GCAL_EXIT;
 }
 
 static void
@@ -521,7 +529,7 @@ gcal_shell_search_provider_set_property (GObject      *object,
         GcalManager *manager;
 
         g_assert (self->context == NULL);
-        self->context = g_value_get_object (value);
+        self->context = g_value_dup_object (value);
 
         self->timeline = gcal_timeline_new (self->context);
         g_signal_connect (self->timeline, "notify::complete", G_CALLBACK (on_timeline_completed_cb), self);

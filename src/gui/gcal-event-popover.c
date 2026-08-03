@@ -495,12 +495,14 @@ setup_description_label (GcalEventPopover *self)
   gcal_utils_extract_google_section (gcal_event_get_description (self->event),
                                      &description,
                                      &meeting_url);
-  g_strstrip (description);
+
+  if (description)
+    g_strstrip (description);
 
   if (meeting_url)
     add_meeting (self, meeting_url);
 
-  string = g_string_new (description);
+  string = g_string_new (description ? description : "");
   g_string_replace (string, "<br>", "\n", 0);
   g_string_replace (string, "&nbsp;", " ", 0);
 

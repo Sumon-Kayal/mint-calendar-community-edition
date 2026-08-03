@@ -1212,7 +1212,7 @@ gcal_month_view_row_new (void)
 GcalContext*
 gcal_month_view_row_get_context (GcalMonthViewRow *self)
 {
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_val_if_fail (GCAL_IS_MONTH_VIEW_ROW (self), NULL);
 
   return self->context;
 }
@@ -1221,7 +1221,7 @@ void
 gcal_month_view_row_set_context (GcalMonthViewRow *self,
                                  GcalContext      *context)
 {
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
 
   if (g_set_object (&self->context, context))
     {
@@ -1232,6 +1232,14 @@ gcal_month_view_row_set_context (GcalMonthViewRow *self,
     }
 }
 
+/**
+ * gcal_month_view_row_get_range:
+ * @self: a #GcalMonthViewRow
+ *
+ * Retrieves the range for this row.
+ *
+ * Returns: (transfer full) (nullable): the row's range
+ */
 GcalRange *
 gcal_month_view_row_get_range (GcalMonthViewRow *self)
 {
@@ -1276,8 +1284,8 @@ void
 gcal_month_view_row_add_event (GcalMonthViewRow *self,
                                GcalEvent        *event)
 {
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-  g_assert (GCAL_IS_EVENT (event));
+  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_if_fail (GCAL_IS_EVENT (event));
 
   g_list_store_insert_sorted (self->events, event, compare_events_cb, self);
   invalidate_layout_blocks (self);
@@ -1289,8 +1297,8 @@ gcal_month_view_row_remove_event (GcalMonthViewRow *self,
 {
   guint position;
 
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-  g_assert (GCAL_IS_EVENT (event));
+  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_if_fail (GCAL_IS_EVENT (event));
 
   GCAL_ENTRY;
 

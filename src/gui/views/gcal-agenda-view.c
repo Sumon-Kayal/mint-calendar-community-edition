@@ -481,8 +481,8 @@ gcal_agenda_view_set_date (GcalView  *view,
 
   gcal_timeline_subscriber_range_changed (GCAL_TIMELINE_SUBSCRIBER (view));
 
-  if (self->events_on_date == 0)
-    gtk_list_box_invalidate_sort (GTK_LIST_BOX (self->list_box));
+  gtk_list_box_invalidate_sort (GTK_LIST_BOX (self->list_box));
+  gtk_list_box_invalidate_headers (GTK_LIST_BOX (self->list_box));
 
   GCAL_EXIT;
 }
@@ -581,8 +581,6 @@ gcal_agenda_view_add_event (GcalTimelineSubscriber *subscriber,
 
   /* FIXME Check gcal_event_is_multiday (event) and gcal_event_get_all_day (event) */
 
-  g_object_ref (event);
-
   if (gcal_date_time_compare_date (self->date, gcal_event_get_date_start (event)) == 0)
     {
       self->events_on_date++;
@@ -641,26 +639,26 @@ gcal_agenda_view_remove_event (GcalTimelineSubscriber *subscriber,
 
   widgets = gcal_range_tree_get_all_data (self->events);
 
-  if (gcal_date_time_compare_date (self->date, gcal_event_get_date_start (event)) == 0)
-    {
-      self->events_on_date--;
-      update_no_events_row (self);
-    }
-
   for (i = 0; widgets && i < widgets->len; i++)
     {
       ChildData *data;
       GtkWidget *widget;
-      GcalEvent *event;
+      GcalEvent *row_event;
 
       data = g_ptr_array_index (widgets, i);
       widget = gtk_list_box_row_get_child (GTK_LIST_BOX_ROW (data->widget));
-      event = gcal_event_widget_get_event (GCAL_EVENT_WIDGET (widget));
+      row_event = gcal_event_widget_get_event (GCAL_EVENT_WIDGET (widget));
 
-      if (g_strcmp0 (gcal_event_get_uid (event), uid) != 0)
+      if (g_strcmp0 (gcal_event_get_uid (row_event), uid) != 0)
         continue;
 
-      gcal_range_tree_remove_range (self->events, gcal_event_get_range (event), data);
+      if (gcal_date_time_compare_date (self->date, gcal_event_get_date_start (row_event)) == 0)
+        {
+          self->events_on_date--;
+          update_no_events_row (self);
+        }
+
+      gcal_range_tree_remove_range (self->events, gcal_event_get_range (row_event), data);
       gtk_widget_queue_allocate (GTK_WIDGET (self));
     }
 
