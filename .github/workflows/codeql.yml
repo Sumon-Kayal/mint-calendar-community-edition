@@ -1,0 +1,61 @@
+# CodeQL security analysis for the C codebase — runs on pushes and pull requests against
+# main, plus a weekly schedule, per GitHub's own recommended setup for compiled languages.
+#
+# CodeQL needs to observe an actual successful build to analyze C (it traces the real
+# compilation), so this hits the same GTK4/libadwaita version gap as the release build — see
+# BUILD.md — and uses the same ppa:savoury1/gtk4 backport as a fix. If this workflow starts
+# failing at the "Build" step rather than during CodeQL analysis itself, that gap is almost
+# certainly why; check `apt-cache policy libgtk-4-dev` first.
+#
+# Uses CodeQL Action v4 (v3 is being deprecated December 2026).
+
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '19 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze (C)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Add GTK4/libadwaita backport PPA and install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends software-properties-common build-essential devscripts equivs
+          sudo add-apt-repository -y ppa:savoury1/gtk4
+          sudo apt-get update
+          sudo mk-build-deps --install --remove \
+            --tool="apt-get -o Debug::pkgProblemResolver=yes -y --no-install-recommends" \
+            debian/control
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+
+      - name: Build
+        run: |
+          meson setup builddir
+          ninja -C builddir
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:c-cpp"

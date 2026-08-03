@@ -1,105 +1,81 @@
+# Builds a native .deb inside a Linux Mint container and publishes it as a real GitHub
+# Release via `gh`. See debian/changelog and BUILD.md for why this tree needs newer
+# GTK4/libadwaita than Mint 22's own repos ship (gtk4 >= 4.21.2, libadwaita >= 1.8~alpha
+# vs Mint 22's default 4.14.5 / 1.5.0) — that gap is real and unrelated to this workflow's
+# own steps. It's addressed below via ppa:savoury1/gtk4, a long-running, actively
+# maintained third-party backport PPA for exactly this situation (see BUILD.md for why
+# this PPA specifically, and for how to verify it before relying on it). If
+# `mk-build-deps` still fails to resolve libadwaita/gtk4/blueprint-compiler after the
+# PPA step, that PPA's currently-published versions are the first thing to check — this
+# workflow can't guarantee a third-party PPA's contents ahead of time.
+
 name: Build & Release (.deb)
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
-    name: Build Debian Package
+    name: "Build .deb (Mint 22 / Ubuntu 24.04 base)"
     runs-on: ubuntu-latest
-
     container:
       image: linuxmintd/mint22-amd64
-
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install build tools
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Install packaging tools
         run: |
-          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential devscripts equivs software-properties-common
 
+      - name: Add GTK4/libadwaita backport PPA (ppa:savoury1/gtk4)
+        run: |
+          add-apt-repository -y ppa:savoury1/gtk4
           apt-get update
 
-          apt-get install -y --no-install-recommends \
-            build-essential \
-            devscripts \
-            equivs \
-            dpkg-dev \
-            fakeroot \
-            git \
-            ca-certificates
-
-      - name: Install package build dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Install build dependencies from debian/control
         run: |
-          set -eux
-
-          mk-build-deps \
-            --install \
-            --remove \
-            --tool="apt-get -y --no-install-recommends" \
+          mk-build-deps --install --remove \
+            --tool="apt-get -o Debug::pkgProblemResolver=yes -y --no-install-recommends" \
             debian/control
 
-      - name: Build package
-        run: |
-          set -eux
-          dpkg-buildpackage -us -uc -b
+      - name: Build binary package
+        run: dpkg-buildpackage -us -uc -b
 
-      - name: Collect packages
+      - name: Collect .deb
         run: |
-          set -eux
           mkdir -p dist
           mv ../*.deb dist/
 
-      - name: Verify package
-        run: |
-          set -eux
-          dpkg-deb --info dist/*.deb
-          dpkg-deb --contents dist/*.deb
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v6
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
         with:
           name: mint-calendar-community-edition-deb
           path: dist/*.deb
-          if-no-files-found: error
 
   release:
-    name: Publish GitHub Release
+    name: "Publish native GitHub Release"
     needs: build
-
     if: startsWith(github.ref, 'refs/tags/')
-
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
-
     steps:
-      - name: Download artifact
+      - name: Download .deb
         uses: actions/download-artifact@v7
         with:
           name: mint-calendar-community-edition-deb
           path: dist
 
-      - name: Publish Release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eux
-
-          gh release create "${{ github.ref_name }}" \
-            dist/*.deb \
+          gh release create "${{ github.ref_name }}" dist/*.deb \
             --repo "${{ github.repository }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes
