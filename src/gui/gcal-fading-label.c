@@ -126,6 +126,9 @@ gcal_fading_label_snapshot (GtkWidget   *widget,
   gtk_widget_snapshot_child (widget, self->label, child_snapshot);
   node = gtk_snapshot_free_to_node (g_steal_pointer (&child_snapshot));
 
+  if (!node)
+    return;
+
   gsk_render_node_get_bounds (node, &bounds);
   bounds.origin.x = 0;
   bounds.origin.y = floor (bounds.origin.y);
