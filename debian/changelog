@@ -1,4 +1,4 @@
-mint-calendar-community-edition (1.0) noble; urgency=medium
+mint-calendar-community-edition (1.0) UNRELEASED; urgency=medium
 
   * First release under Mint Calendar (Community Edition)'s own version
     scheme. Previous work-in-progress entries tracked upstream's version
