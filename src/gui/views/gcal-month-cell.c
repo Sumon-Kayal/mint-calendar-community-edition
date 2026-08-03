@@ -185,7 +185,7 @@ update_weather (GcalMonthCell *self)
   GDate date;
   gint day_of_month;
 
-  if (!self->context)
+  if (!self->context || !self->date)
     return;
 
   day_of_month = g_date_time_get_day_of_month (self->date);
