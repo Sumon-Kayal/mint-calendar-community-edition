@@ -620,12 +620,9 @@ check_mergeable_events (GcalWeekHeader *self)
 
           index++;
         }
-
-      /* We can get rid of the checked list here */
-      g_list_free (checked_events[weekday]);
     }
 
-  /* Clean up any remaining checked_events lists that were populated but not freed */
+  /* Clean up all checked_events lists */
   for (weekday = 0; weekday < N_WEEKDAYS; weekday++)
     g_list_free (checked_events[weekday]);
 }
