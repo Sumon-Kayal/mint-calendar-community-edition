@@ -1133,7 +1133,7 @@ gcal_utils_format_filename_for_display (const gchar *filename)
   return g_steal_pointer (&display_name);
 }
 
-gboolean
+void
 gcal_utils_extract_google_section (const gchar  *description,
                                    gchar       **out_description,
                                    gchar       **out_meeting_url)
@@ -1146,13 +1146,7 @@ gcal_utils_extract_google_section (const gchar  *description,
   gchar *last_delimiter;
 
   if (!description)
-    {
-      if (out_description)
-        *out_description = g_strdup ("");
-      if (out_meeting_url)
-        *out_meeting_url = NULL;
-      return FALSE;
-    }
+    goto out;
 
 #define GOOGLE_DELIMITER "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-"
 
@@ -1163,7 +1157,7 @@ gcal_utils_extract_google_section (const gchar  *description,
 
   delimiter_len = strlen (GOOGLE_DELIMITER);
   last_delimiter = g_strstr_len (first_delimiter + delimiter_len,
-                                 description_len - (first_delimiter - description) - delimiter_len,
+                                 description_len,
                                  GOOGLE_DELIMITER);
   if (!last_delimiter)
     goto out;
@@ -1186,44 +1180,10 @@ gcal_utils_extract_google_section (const gchar  *description,
 
 out:
   if (out_description)
-    *out_description = actual_description ? g_steal_pointer (&actual_description) : g_strdup (description ? description : "");
+    *out_description = actual_description ? g_steal_pointer (&actual_description) : g_strdup (description);
 
   if (out_meeting_url)
     *out_meeting_url = g_steal_pointer (&meeting_url);
-
-  return first_delimiter != NULL;
-}
-
-/**
- * gcal_utils_add_activate_shortcuts:
- * @widget_class: a #GtkWidgetClass
- *
- * Adds standard activation shortcuts (Space, Return, KP_Enter, etc.)
- * to the given widget class, triggering the "activate" signal.
- */
-void
-gcal_utils_add_activate_shortcuts (GtkWidgetClass *widget_class)
-{
-  g_autoptr (GtkShortcutAction) activate_action = NULL;
-  const guint activate_keyvals[] = {
-    GDK_KEY_space,
-    GDK_KEY_KP_Space,
-    GDK_KEY_Return,
-    GDK_KEY_ISO_Enter,
-    GDK_KEY_KP_Enter,
-  };
-
-  activate_action = gtk_signal_action_new ("activate");
-
-  for (size_t i = 0; i < G_N_ELEMENTS (activate_keyvals); i++)
-    {
-      g_autoptr (GtkShortcut) activate_shortcut = NULL;
-
-      activate_shortcut = gtk_shortcut_new (gtk_keyval_trigger_new (activate_keyvals[i], 0),
-                                            g_object_ref (activate_action));
-
-      gtk_widget_class_add_shortcut (widget_class, activate_shortcut);
-    }
 }
 
 typedef struct
