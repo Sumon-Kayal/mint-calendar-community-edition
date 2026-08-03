@@ -1,18 +1,48 @@
-mint-calendar-community-edition (51.beta+mint1) UNRELEASED; urgency=medium
+mint-calendar-community-edition (1.0) noble; urgency=medium
 
-  * Backport onto upstream GNOME Calendar main (51.beta): attendee/organizer
-    support in the event editor, redesigned main window, new agenda-day
-    view, Blueprint-based UI, accessibility and keyboard-nav improvements
+  * First release under Mint Calendar (Community Edition)'s own version
+    scheme. Previous work-in-progress entries tracked upstream's version
+    number (50.0+mint1); this fork now versions independently, since it
+    is its own distributed product rather than a straight rebuild of
+    GNOME Calendar. The upstream base is still documented in the package
+    description and README rather than the version string.
+  * Rebase onto upstream GNOME Calendar's tagged stable v50.0 release,
+    replacing the previous 51.beta development-snapshot base. Drops the
+    in-progress GListModel internals rewrite and other main-branch churn
+    that was not part of a tagged release.
   * Reapply Mint's desktop-environment-aware settings launcher patch
-    (gcal_utils_launch_gnome_settings) on top of the new base
-  * Bump Build-Depends to match: blueprint-compiler, libfribidi-dev,
-    libadwaita-1-dev (>= 1.8~alpha), libgtk-4-dev (>= 4.21.2),
-    libglib2.0-dev (>= 2.80.0)
-  * NOTE: based on upstream's main branch, not a tagged stable release —
-    includes the still-in-progress GListModel internals rewrite (51.alpha).
-    Not verified to build; see README for details before relying on this.
+    (gcal_utils_launch_gnome_settings) on top of the new base, verified
+    byte-for-byte identical to the patch in Linux Mint's own gnome-calendar
+    pin (48.1+mint1)
+  * Rebrand application ID, icons, and desktop launcher entry to
+    org.mint.calendar.community.edition / "Mint Calendar"; app icon
+    restyled with a flat, Mint-Y-Dark-inspired palette (dark neutral body,
+    Mint green accent, in place of upstream's purple gradient). The
+    Inkscape master design file was recolored to match.
+  * Rewrite CONTRIBUTING.md's generative-AI policy: unlike upstream, this
+    fork accepts AI-assisted contributions provided they're disclosed and
+    documented; acceptance is still at the maintainer's discretion.
+  * Remove Flatpak packaging (build-aux/org.gnome.Calendar.json) and the
+    runtime Flatpak-sandbox check in the About dialog's debug-info output;
+    this project ships as a native .deb only. Upstream never shipped a
+    Snap package, so there was nothing to remove there.
+  * Document and wire up a real path to satisfy the GTK4/libadwaita
+    version floor on Mint 22: ppa:savoury1/gtk4, added as a build step in
+    .github/workflows/release-deb.yml and documented in BUILD.md. Confirmed
+    this PPA exists and is actively maintained for Noble; did not confirm
+    its exact currently-published versions (Launchpad blocks automated
+    fetches) — verify with `apt-cache policy libgtk-4-dev` before relying
+    on it.
+  * Add BUILD.md with real, verified dependency versions and both a dev
+    build and a .deb packaging workflow.
+  * Build-Depends versions (blueprint-compiler, libfribidi-dev,
+    libadwaita-1-dev >= 1.8~alpha, libgtk-4-dev >= 4.21.2,
+    libglib2.0-dev >= 2.80.0) are unchanged by the v50.0 rebase — v50.0
+    stable requires the same floors the 51.beta snapshot did. This
+    remains newer than what Mint 22 / Ubuntu 24.04 (Noble) ship by
+    default; see BUILD.md.
 
- -- Sumon Kayal <sumankayalsuman4@proton.me>  Fri, 31 Jul 2026 00:33:41 +0530
+ -- Sumon Kayal <sumankayalsuman4@proton.me>  Sun, 02 Aug 2026 00:00:00 +0530
 
 gnome-calendar (48.1+mint1) gigi; urgency=medium
 

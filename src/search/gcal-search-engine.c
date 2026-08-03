@@ -20,7 +20,7 @@
 
 #define G_LOG_DOMAIN "GcalSearchEngine"
 
-#include "gcal-utils.h"
+#include "gcal-context.h"
 #include "gcal-date-time-utils.h"
 #include "gcal-debug.h"
 #include "gcal-search-engine.h"
@@ -34,9 +34,20 @@ struct _GcalSearchEngine
   GObject             parent;
 
   GcalTimeline       *timeline;
+
+  GcalContext        *context;
 };
 
 G_DEFINE_TYPE (GcalSearchEngine, gcal_search_engine, G_TYPE_OBJECT)
+
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
+
+static GParamSpec *properties [N_PROPS];
 
 
 /*
@@ -98,6 +109,9 @@ gcal_search_engine_finalize (GObject *object)
 {
   GcalSearchEngine *self = (GcalSearchEngine *)object;
 
+  if (self->context)
+    g_object_remove_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
+
   g_clear_object (&self->timeline);
 
   G_OBJECT_CLASS (gcal_search_engine_parent_class)->finalize (object);
@@ -107,18 +121,57 @@ static void
 gcal_search_engine_constructed (GObject *object)
 {
   GcalSearchEngine *self = (GcalSearchEngine *)object;
-  GcalContext *context;
   GcalManager *manager;
 
   G_OBJECT_CLASS (gcal_search_engine_parent_class)->constructed (object);
 
   /* Setup the data model */
-  self->timeline = gcal_timeline_new ();
+  self->timeline = gcal_timeline_new (self->context);
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  manager = gcal_context_get_manager (context);
+  manager = gcal_context_get_manager (self->context);
+  g_assert (manager != NULL);
   g_signal_connect_object (manager, "calendar-added", G_CALLBACK (on_manager_calendar_added_cb), self, 0);
   g_signal_connect_object (manager, "calendar-removed", G_CALLBACK (on_manager_calendar_removed_cb), self, 0);
+}
+
+static void
+gcal_search_engine_get_property (GObject    *object,
+                                 guint       prop_id,
+                                 GValue     *value,
+                                 GParamSpec *pspec)
+{
+  GcalSearchEngine *self = GCAL_SEARCH_ENGINE (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+gcal_search_engine_set_property (GObject      *object,
+                                 guint         prop_id,
+                                 const GValue *value,
+                                 GParamSpec   *pspec)
+{
+  GcalSearchEngine *self = GCAL_SEARCH_ENGINE (object);
+
+  switch (prop_id)
+    {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_get_object (value);
+      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *) &self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
 }
 
 static void
@@ -128,6 +181,21 @@ gcal_search_engine_class_init (GcalSearchEngineClass *klass)
 
   object_class->finalize = gcal_search_engine_finalize;
   object_class->constructed = gcal_search_engine_constructed;
+  object_class->get_property = gcal_search_engine_get_property;
+  object_class->set_property = gcal_search_engine_set_property;
+
+  /**
+   * GcalSearchEngine::context:
+   *
+   * The #GcalContext of the application.
+   */
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Data context",
+                                                  "Data context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_PROPS, properties);
 }
 
 static void
@@ -136,9 +204,10 @@ gcal_search_engine_init (GcalSearchEngine *self)
 }
 
 GcalSearchEngine *
-gcal_search_engine_new (void)
+gcal_search_engine_new (GcalContext *context)
 {
   return g_object_new (GCAL_TYPE_SEARCH_ENGINE,
+                       "context", context,
                        NULL);
 }
 
@@ -154,14 +223,12 @@ gcal_search_engine_search (GcalSearchEngine    *self,
   g_autoptr (GDateTime) range_end = NULL;
   g_autoptr (GDateTime) now = NULL;
   g_autoptr (GTask) task = NULL;
-  GcalContext *context;
   GTimeZone *timezone;
 
   g_return_if_fail (GCAL_IS_SEARCH_ENGINE (self));
   g_return_if_fail (!cancellable || G_IS_CANCELLABLE (cancellable));
 
-  context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-  timezone = gcal_context_get_timezone (context);
+  timezone = gcal_context_get_timezone (self->context);
   now = g_date_time_new_now (timezone);
   range_start = g_date_time_add_months (now, -N_WEEKDAYS - 1);
   range_end = g_date_time_add_months (now, N_WEEKDAYS - 1);

@@ -22,8 +22,8 @@
 #define G_LOG_DOMAIN "GcalMonthView"
 
 #include "config.h"
+#include "gcal-context.h"
 #include "gcal-debug.h"
-#include "gcal-event-widget-pool.h"
 #include "gcal-month-cell.h"
 #include "gcal-month-popover.h"
 #include "gcal-month-view.h"
@@ -37,7 +37,7 @@
 #include <adwaita.h>
 
 #define N_ROWS_PER_PAGE 5
-#define N_PAGES 3
+#define N_PAGES 5
 #define N_TOTAL_ROWS (N_ROWS_PER_PAGE * N_PAGES)
 #define FIRST_VISIBLE_ROW_INDEX (N_ROWS_PER_PAGE * (N_PAGES - 1) / 2)
 #define LAST_VISIBLE_ROW_INDEX (FIRST_VISIBLE_ROW_INDEX + N_ROWS_PER_PAGE - 1)
@@ -56,8 +56,7 @@ struct _GcalMonthView
   GtkEventController *motion_controller;
 
   GPtrArray          *week_rows;
-
-  GcalEventWidgetPool *event_widget_pool;
+  GHashTable         *events;
 
   struct {
     GtkWidget        *popover;
@@ -78,6 +77,7 @@ struct _GcalMonthView
   gdouble             last_velocity;
 
   GDateTime          *date;
+  GcalContext        *context;
 
   GtkWidget          *last_focused_widget;
 
@@ -99,6 +99,7 @@ G_DEFINE_FINAL_TYPE_WITH_CODE (GcalMonthView, gcal_month_view, GTK_TYPE_WIDGET,
 enum
 {
   PROP_0,
+  PROP_CONTEXT,
   PROP_DATE,
   PROP_TIME_DIRECTION,
   N_PROPS,
@@ -236,6 +237,28 @@ update_active_date (GcalMonthView *self)
   g_object_notify (G_OBJECT (self), "active-date");
 }
 
+static void
+add_cached_events_to_row (GcalMonthView    *self,
+                          GcalMonthViewRow *row)
+{
+  g_autoptr (GcalRange) row_range = NULL;
+  GHashTableIter iter;
+  GcalEvent *event;
+
+  row_range = gcal_month_view_row_get_range (row);
+
+  g_hash_table_iter_init (&iter, self->events);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &event, NULL))
+    {
+      GcalRangeOverlap overlap = gcal_range_calculate_overlap (row_range, gcal_event_get_range (event), NULL);
+
+      if (overlap == GCAL_RANGE_NO_OVERLAP)
+        continue;
+
+      gcal_month_view_row_add_event (row, event);
+    }
+}
+
 static inline void
 maybe_popdown_overflow_popover (GcalMonthView *self)
 {
@@ -282,6 +305,8 @@ move_bottom_row_to_top (GcalMonthView *self)
   last_row = g_ptr_array_steal_index (self->week_rows, self->week_rows->len - 1);
   gcal_month_view_row_set_range (GCAL_MONTH_VIEW_ROW (last_row), new_range);
   g_ptr_array_insert (self->week_rows, 0, last_row);
+
+  add_cached_events_to_row (self, GCAL_MONTH_VIEW_ROW (last_row));
 }
 
 static void
@@ -314,6 +339,8 @@ move_top_row_to_bottom (GcalMonthView *self)
   first_row = g_ptr_array_steal_index (self->week_rows, 0);
   gcal_month_view_row_set_range (GCAL_MONTH_VIEW_ROW (first_row), new_range);
   g_ptr_array_insert (self->week_rows, -1, first_row);
+
+  add_cached_events_to_row (self, GCAL_MONTH_VIEW_ROW (first_row));
 }
 
 static inline void
@@ -408,31 +435,6 @@ get_grid_height (GcalMonthView *self)
   return gtk_widget_get_height (GTK_WIDGET (self)) - gtk_widget_get_height (self->header);
 }
 
-static inline void
-update_visible_rows (GcalMonthView *self)
-{
-  int actual_first_visible_row;
-  int actual_last_visible_row;
-
-  actual_first_visible_row = MAX (FIRST_VISIBLE_ROW_INDEX - (self->row_offset < 0.0 ? 1 : 0), 0);
-  actual_last_visible_row = MIN (LAST_VISIBLE_ROW_INDEX + (self->row_offset > 0.0 ? 1 : 0), N_TOTAL_ROWS);
-
-  for (unsigned int i = 0; i < self->week_rows->len; i++)
-    {
-      GtkWidget *row;
-      gboolean child_visible;
-      gboolean visible;
-
-      row = g_ptr_array_index (self->week_rows, i);
-
-      child_visible = i >= actual_first_visible_row && i <= actual_last_visible_row;
-      visible = (i >= actual_first_visible_row - 1) && (i <= actual_last_visible_row + 1);
-
-      gtk_widget_set_visible (row, visible);
-      gtk_widget_set_child_visible (row, child_visible);
-    }
-}
-
 static void
 offset_and_shuffle_rows (GcalMonthView *self,
                          gdouble        dy)
@@ -467,7 +469,6 @@ offset_and_shuffle_rows (GcalMonthView *self,
       dump_row_ranges (self);
     }
 
-  update_visible_rows (self);
   gtk_widget_queue_allocate (GTK_WIDGET (self));
 
   GCAL_EXIT;
@@ -497,8 +498,6 @@ animate_row_offset_cb (gdouble  value,
   GcalMonthView *self = GCAL_MONTH_VIEW (user_data);
 
   self->row_offset = value;
-
-  update_visible_rows (self);
   gtk_widget_queue_allocate (GTK_WIDGET (self));
 }
 
@@ -510,8 +509,6 @@ on_row_offset_animation_done (AdwAnimation  *animation,
   cancel_row_offset_animation (self);
 
   self->row_offset = 0.0;
-
-  update_visible_rows (self);
   gtk_widget_queue_allocate (GTK_WIDGET (self));
 }
 
@@ -1286,23 +1283,106 @@ gcal_month_view_get_range (GcalTimelineSubscriber *subscriber)
 }
 
 static void
-gcal_month_view_set_model (GcalTimelineSubscriber *subscriber,
-                           GListModel             *model)
+gcal_month_view_add_event (GcalTimelineSubscriber *subscriber,
+                           GcalEvent              *event)
 {
   GcalMonthView *self;
 
   GCAL_ENTRY;
 
+  g_assert (event != NULL);
+
   self = GCAL_MONTH_VIEW (subscriber);
+
+  if (!g_hash_table_add (self->events, g_object_ref (event)))
+    {
+      g_warning ("Event with uuid: %s already added", gcal_event_get_uid (event));
+      GCAL_RETURN ();
+    }
 
   for (guint i = 0; i < self->week_rows->len; i++)
     {
-      GcalMonthViewRow *row = g_ptr_array_index (self->week_rows, i);
+      g_autoptr (GcalRange) row_range = NULL;
+      GcalRangePosition position;
+      GcalRangeOverlap overlap;
+      GcalMonthViewRow *row;
 
-      gcal_month_view_row_set_model (row, model);
+      row = g_ptr_array_index (self->week_rows, i);
+      row_range = gcal_month_view_row_get_range (row);
+
+      overlap = gcal_range_calculate_overlap (row_range, gcal_event_get_range (event), &position);
+      if (overlap != GCAL_RANGE_NO_OVERLAP)
+        {
+          gcal_month_view_row_add_event (row, event);
+        }
+      else
+        {
+          if (position == GCAL_RANGE_AFTER)
+            break;
+        }
     }
 
-  gcal_month_popover_set_model (GCAL_MONTH_POPOVER (self->overflow.popover), model);
+  GCAL_EXIT;
+}
+
+static void
+gcal_month_view_remove_event (GcalTimelineSubscriber *subscriber,
+                              GcalEvent              *event)
+{
+  g_autoptr (GcalEvent) G_GNUC_UNUSED owned_event = NULL;
+  GcalMonthView *self;
+
+  GCAL_ENTRY;
+
+  g_assert (event != NULL);
+
+  self = GCAL_MONTH_VIEW (subscriber);
+
+  /* Keep event alive while removing it */
+  owned_event = g_object_ref (event);
+
+  if (!g_hash_table_remove (self->events, event))
+    {
+      g_warning ("Event with uuid: %s not in %s", gcal_event_get_uid (event), G_OBJECT_TYPE_NAME (self));
+      GCAL_RETURN ();
+    }
+
+  for (guint i = 0; i < self->week_rows->len; i++)
+    {
+      g_autoptr (GcalRange) row_range = NULL;
+      GcalRangePosition position;
+      GcalRangeOverlap overlap;
+      GcalMonthViewRow *row;
+
+      row = g_ptr_array_index (self->week_rows, i);
+      row_range = gcal_month_view_row_get_range (row);
+
+      overlap = gcal_range_calculate_overlap (row_range, gcal_event_get_range (event), &position);
+      if (overlap != GCAL_RANGE_NO_OVERLAP)
+        {
+          gcal_month_view_row_remove_event (row, event);
+        }
+      else
+        {
+          if (position == GCAL_RANGE_AFTER)
+            break;
+        }
+    }
+
+  GCAL_EXIT;
+}
+
+static void
+gcal_month_view_update_event (GcalTimelineSubscriber *subscriber,
+                              GcalEvent              *old_event,
+                              GcalEvent              *event)
+{
+  GCAL_ENTRY;
+
+  g_assert (event != NULL);
+
+  gcal_month_view_remove_event (subscriber, old_event);
+  gcal_month_view_add_event (subscriber, event);
 
   GCAL_EXIT;
 }
@@ -1311,7 +1391,9 @@ static void
 gcal_timeline_subscriber_interface_init (GcalTimelineSubscriberInterface *iface)
 {
   iface->get_range = gcal_month_view_get_range;
-  iface->set_model = gcal_month_view_set_model;
+  iface->add_event = gcal_month_view_add_event;
+  iface->update_event = gcal_month_view_update_event;
+  iface->remove_event = gcal_month_view_remove_event;
 }
 
 
@@ -1354,7 +1436,6 @@ gcal_month_view_set_date (GcalView  *view,
 #endif
 
   update_week_ranges (self, date);
-  update_visible_rows (self);
 
   gcal_timeline_subscriber_range_changed (GCAL_TIMELINE_SUBSCRIBER (view));
 
@@ -1591,9 +1672,6 @@ gcal_month_view_measure (GtkWidget      *widget,
 
       row = g_ptr_array_index (self->week_rows, i);
 
-      if (!gtk_widget_should_layout (row))
-        continue;
-
       gtk_widget_measure (row,
                           orientation,
                           for_size,
@@ -1666,11 +1744,9 @@ gcal_month_view_size_allocate (GtkWidget *widget,
     {
       GtkAllocation row_allocation;
       GtkWidget *row;
+      gboolean child_visible;
 
       row = g_ptr_array_index (self->week_rows, i);
-
-      if (!gtk_widget_should_layout (row))
-        continue;
 
 #define ROW_Y(_i) (row_height * (_i) + y_offset)
 
@@ -1678,9 +1754,11 @@ gcal_month_view_size_allocate (GtkWidget *widget,
       row_allocation.y = round (ROW_Y (i));
       row_allocation.width = width;
       row_allocation.height = round (ROW_Y (i + 1)) - row_allocation.y;
-      gcal_month_view_row_set_ceiled_height (GCAL_MONTH_VIEW_ROW (row), row_height < row_allocation.height);
 
 #undef ROW_Y
+
+      child_visible = (row_allocation.y + row_allocation.height > header_height) && row_allocation.y < height;
+      gtk_widget_set_child_visible (row, child_visible);
 
       gtk_widget_size_allocate (row, &row_allocation, baseline);
     }
@@ -1732,6 +1810,8 @@ gcal_month_view_dispose (GObject *object)
 
   GCAL_ENTRY;
 
+  g_clear_pointer (&self->events, g_hash_table_destroy);
+
   g_clear_object (&self->kinetic_scroll_animation);
   g_clear_object (&self->row_offset_animation);
 
@@ -1751,10 +1831,10 @@ gcal_month_view_finalize (GObject *object)
 {
   GcalMonthView *self = (GcalMonthView *)object;
 
-  g_clear_object (&self->event_widget_pool);
   gcal_clear_date_time (&self->selection.start);
   gcal_clear_date_time (&self->selection.end);
   gcal_clear_date_time (&self->date);
+  g_clear_object (&self->context);
 
   G_OBJECT_CLASS (gcal_month_view_parent_class)->finalize (object);
 }
@@ -1771,6 +1851,10 @@ gcal_month_view_get_property (GObject    *object,
     {
     case PROP_DATE:
       g_value_set_boxed (value, self->date);
+      break;
+
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
       break;
 
     case PROP_TIME_DIRECTION:
@@ -1796,6 +1880,16 @@ gcal_month_view_set_property (GObject      *object,
       gcal_view_set_date (GCAL_VIEW (self), g_value_get_boxed (value));
       break;
 
+    case PROP_CONTEXT:
+      g_return_if_fail (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      for (gint i = 0; i < N_TOTAL_ROWS; i++)
+        gcal_month_view_row_set_context (g_ptr_array_index (self->week_rows, i), self->context);
+
+      g_object_notify (object, "context");
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -1817,6 +1911,7 @@ gcal_month_view_class_init (GcalMonthViewClass *klass)
   widget_class->size_allocate = gcal_month_view_size_allocate;
   widget_class->snapshot = gcal_month_view_snapshot;
 
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
   g_object_class_override_property (object_class, PROP_DATE, "active-date");
   g_object_class_override_property (object_class, PROP_TIME_DIRECTION, "time-direction");
 
@@ -1851,7 +1946,7 @@ gcal_month_view_init (GcalMonthView *self)
 {
   g_autoptr (GDateTime) now = NULL;
 
-  self->event_widget_pool = gcal_event_widget_pool_new ();
+  self->events = g_hash_table_new_full (g_direct_hash, g_direct_equal, g_object_unref, NULL);
 
   gtk_widget_init_template (GTK_WIDGET (self));
   update_weekday_labels (self);
@@ -1864,7 +1959,7 @@ gcal_month_view_init (GcalMonthView *self)
   self->week_rows = g_ptr_array_new_full (N_TOTAL_ROWS, (GDestroyNotify) gtk_widget_unparent);
   for (gint i = 0; i < N_TOTAL_ROWS; i++)
     {
-      GtkWidget *row = gcal_month_view_row_new (self->event_widget_pool);
+      GtkWidget *row = gcal_month_view_row_new ();
       g_signal_connect (row, "event-activated", G_CALLBACK (on_event_widget_activated_cb), self);
       g_signal_connect (row, "cell-activated", G_CALLBACK (on_month_row_cell_activated_cb), self);
       g_signal_connect (row, "show-overflow", G_CALLBACK (on_month_row_show_overflow_cb), self);
@@ -1876,6 +1971,7 @@ gcal_month_view_init (GcalMonthView *self)
 
   /* Overflow popover */
   self->overflow.popover = gcal_month_popover_new ();
+  g_object_bind_property (self, "context", self->overflow.popover, "context", G_BINDING_DEFAULT);
   g_signal_connect (self->overflow.popover, "event-activated", G_CALLBACK (on_month_popover_event_activated_cb), self);
   g_signal_connect (self->overflow.popover, "closed", G_CALLBACK (on_month_popover_closed_cb), self);
 
@@ -1883,6 +1979,4 @@ gcal_month_view_init (GcalMonthView *self)
 
   now = g_date_time_new_now_local ();
   gcal_view_set_date (GCAL_VIEW (self), now);
-
-  update_visible_rows (self);
 }

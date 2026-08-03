@@ -32,8 +32,14 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (GcalWeekHeader, gcal_week_header, GCAL, WEEK_HEADER, GtkWidget)
 
-void                 gcal_week_header_set_model                  (GcalWeekHeader     *self,
-                                                                  GListModel         *model);
+void                 gcal_week_header_set_context                (GcalWeekHeader     *self,
+                                                                  GcalContext        *context);
+
+void                 gcal_week_header_add_event                  (GcalWeekHeader     *self,
+                                                                  GcalEvent          *event);
+
+void                 gcal_week_header_remove_event               (GcalWeekHeader     *self,
+                                                                  const gchar        *uuid);
 
 GList*               gcal_week_header_get_children_by_uuid       (GcalWeekHeader        *self,
                                                                   GcalRecurrenceModType  mod,

@@ -25,7 +25,6 @@
 #include "gcal-date-time-utils.h"
 #include "gcal-debug.h"
 #include "gcal-event.h"
-#include "gcal-event-list.h"
 
 #include <gio/gio.h>
 #include <libecal/libecal.h>
@@ -60,7 +59,9 @@ struct _GcalCalendarMonitor
   GAsyncQueue        *messages;
   GcalCalendar       *calendar;
   gboolean            complete;
-  GcalEventList      *event_list;
+
+  const GcalCalendarMonitorListener *listener;
+  gpointer                           listener_user_data;
 
   /*
    * These fields are only accessed on the monitor thread, and
@@ -88,10 +89,8 @@ static gboolean      add_events_to_timeline_in_idle_cb           (gpointer      
 static gboolean      update_events_in_idle_cb                    (gpointer           user_data);
 static gboolean      remove_events_from_timeline_in_idle_cb      (gpointer           user_data);
 static gboolean      complete_in_idle_cb                         (gpointer           user_data);
-static void          g_list_model_interface_init                 (GListModelInterface *iface);
 
-G_DEFINE_TYPE_WITH_CODE (GcalCalendarMonitor, gcal_calendar_monitor, G_TYPE_OBJECT,
-                         G_IMPLEMENT_INTERFACE (G_TYPE_LIST_MODEL, g_list_model_interface_init))
+G_DEFINE_TYPE (GcalCalendarMonitor, gcal_calendar_monitor, G_TYPE_OBJECT)
 
 enum
 {
@@ -102,48 +101,6 @@ enum
 };
 
 static GParamSpec *properties [N_PROPS] = { NULL, };
-
-
-/*
- * GListModel interface
- */
-
-static GType
-gcal_calendar_monitor_get_item_type (GListModel *model G_GNUC_UNUSED)
-{
-  return GCAL_TYPE_EVENT;
-}
-
-static guint
-gcal_calendar_monitor_get_n_items (GListModel *model)
-{
-  GcalCalendarMonitor *self = (GcalCalendarMonitor *) model;
-
-  g_assert (GCAL_IS_CALENDAR_MONITOR (self));
-
-  return g_list_model_get_n_items (G_LIST_MODEL (self->event_list));
-}
-
-static gpointer
-gcal_calendar_monitor_get_item (GListModel *model,
-                                guint       position)
-{
-  GcalCalendarMonitor *self = (GcalCalendarMonitor *) model;
-
-  g_assert (GCAL_IS_CALENDAR_MONITOR (self));
-
-  return g_list_model_get_item (G_LIST_MODEL (self->event_list), position);
-}
-
-
-static void
-g_list_model_interface_init (GListModelInterface *iface)
-{
-  iface->get_item_type = gcal_calendar_monitor_get_item_type;
-  iface->get_n_items = gcal_calendar_monitor_get_n_items;
-  iface->get_item = gcal_calendar_monitor_get_item;
-}
-
 
 /*
  * Threads
@@ -1038,9 +995,8 @@ remove_events_outside_range (GcalCalendarMonitor *self,
 
   G_RW_LOCK_WRITER_AUTO_LOCK (&self->shared.lock, writer_locker);
 
-  events_to_remove = g_ptr_array_new_null_terminated (g_hash_table_size (self->shared.events),
-                                                      g_object_unref,
-                                                      TRUE);
+  events_to_remove = g_ptr_array_new_full (g_hash_table_size (self->shared.events),
+                                           g_object_unref);
 
   g_hash_table_iter_init (&iter, self->shared.events);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer*) &event))
@@ -1055,20 +1011,24 @@ remove_events_outside_range (GcalCalendarMonitor *self,
     }
 
   if (events_to_remove->len > 0)
-    gcal_event_list_remove_events (self->event_list, (GcalEvent **) events_to_remove->pdata);
+    self->listener->remove_events (self, events_to_remove, self->listener_user_data);
 }
 
 static void
 remove_all_events (GcalCalendarMonitor *self)
 {
+  g_autoptr (GPtrArray) events_to_remove = NULL;
+
   g_assert (GCAL_IS_MAIN_THREAD ());
 
   GCAL_TRACE_MSG ("Removing all events from view");
 
   G_RW_LOCK_WRITER_AUTO_LOCK (&self->shared.lock, writer_locker);
 
-  g_hash_table_remove_all (self->shared.events);
-  gcal_event_list_remove_all_events (self->event_list);
+  events_to_remove = g_hash_table_steal_all_values (self->shared.events);
+
+  if (events_to_remove->len > 0)
+    self->listener->remove_events (self, events_to_remove, self->listener_user_data);
 }
 
 static void
@@ -1108,7 +1068,7 @@ add_events_to_timeline_in_idle_cb (gpointer user_data)
   events = idle_data->events;
   g_assert (idle_data->event_ids == NULL);
 
-  events_to_add = g_ptr_array_new_null_terminated (events->len, NULL, TRUE);
+  events_to_add = g_ptr_array_sized_new (events->len);
 
   G_RW_LOCK_WRITER_AUTO_LOCK (&self->shared.lock, writer_locker);
   for (guint i = 0; i < events->len; i++)
@@ -1127,7 +1087,7 @@ add_events_to_timeline_in_idle_cb (gpointer user_data)
     }
 
   if (events_to_add->len > 0)
-    gcal_event_list_add_events (self->event_list, (GcalEvent **) events_to_add->pdata);
+    self->listener->add_events (self, events_to_add, self->listener_user_data);
 
   GCAL_RETURN (G_SOURCE_REMOVE);
 }
@@ -1150,8 +1110,8 @@ update_events_in_idle_cb (gpointer user_data)
   events = g_steal_pointer (&idle_data->events);
   g_assert (idle_data->event_ids == NULL);
 
-  old_events = g_ptr_array_new_null_terminated (events->len, g_object_unref, TRUE);
-  new_events = g_ptr_array_new_null_terminated (events->len, NULL, TRUE);
+  old_events = g_ptr_array_new_full (events->len, g_object_unref);
+  new_events = g_ptr_array_sized_new (events->len);
 
   G_RW_LOCK_WRITER_AUTO_LOCK (&self->shared.lock, writer_locker);
   for (guint i = 0; i < events->len; i++)
@@ -1178,10 +1138,7 @@ update_events_in_idle_cb (gpointer user_data)
   g_assert (old_events->len == new_events->len);
 
   if (new_events->len > 0)
-    {
-      gcal_event_list_remove_events (self->event_list, (GcalEvent **) old_events->pdata);
-      gcal_event_list_add_events (self->event_list, (GcalEvent **) new_events->pdata);
-    }
+    self->listener->update_events (self, old_events, new_events, self->listener_user_data);
 
   GCAL_RETURN (G_SOURCE_REMOVE);
 }
@@ -1203,7 +1160,7 @@ remove_events_from_timeline_in_idle_cb (gpointer user_data)
   event_ids = g_steal_pointer (&idle_data->event_ids);
   g_assert (idle_data->events == NULL);
 
-  events_to_remove = g_ptr_array_new_null_terminated (event_ids->len, g_object_unref, TRUE);
+  events_to_remove = g_ptr_array_new_full (event_ids->len, g_object_unref);
 
   G_RW_LOCK_WRITER_AUTO_LOCK (&self->shared.lock, writer_locker);
 
@@ -1224,7 +1181,7 @@ remove_events_from_timeline_in_idle_cb (gpointer user_data)
     }
 
   if (events_to_remove->len > 0)
-    gcal_event_list_remove_events (self->event_list, (GcalEvent **) events_to_remove->pdata);
+    self->listener->remove_events (self, events_to_remove, self->listener_user_data);
 
   GCAL_RETURN (G_SOURCE_REMOVE);
 }
@@ -1296,7 +1253,6 @@ gcal_calendar_monitor_finalize (GObject *object)
 {
   GcalCalendarMonitor *self = (GcalCalendarMonitor *)object;
 
-  g_clear_object (&self->event_list);
   g_clear_object (&self->calendar);
   g_clear_pointer (&self->thread_context, g_main_context_unref);
   g_clear_pointer (&self->main_context, g_main_context_unref);
@@ -1385,21 +1341,28 @@ gcal_calendar_monitor_init (GcalCalendarMonitor *self)
   self->main_context = g_main_context_ref_thread_default ();
   self->messages = g_async_queue_new ();
   self->complete = FALSE;
-  self->event_list = gcal_event_list_new ();
 
   g_rw_lock_init (&self->shared.lock);
-
-  g_signal_connect_swapped (self->event_list, "items-changed", G_CALLBACK (g_list_model_items_changed), self);
 }
 
 GcalCalendarMonitor*
-gcal_calendar_monitor_new (GcalCalendar *calendar)
+gcal_calendar_monitor_new (GcalCalendar                      *calendar,
+                           const GcalCalendarMonitorListener *listener,
+                           gpointer                           user_data)
 {
-  g_assert (calendar != NULL && GCAL_IS_CALENDAR (calendar));
+  g_autoptr (GcalCalendarMonitor) monitor = NULL;
 
-  return g_object_new (GCAL_TYPE_CALENDAR_MONITOR,
-                       "calendar", calendar,
-                       NULL);
+  g_assert (calendar != NULL && GCAL_IS_CALENDAR (calendar));
+  g_assert (listener != NULL);
+
+  monitor = g_object_new (GCAL_TYPE_CALENDAR_MONITOR,
+                          "calendar", calendar,
+                          NULL);
+
+  monitor->listener = listener;
+  monitor->listener_user_data = user_data;
+
+  return g_steal_pointer (&monitor);
 }
 
 /**
@@ -1501,4 +1464,3 @@ gcal_calendar_monitor_is_complete (GcalCalendarMonitor *self)
 
   return self->complete;
 }
-

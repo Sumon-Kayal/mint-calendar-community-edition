@@ -50,15 +50,17 @@ struct _GcalMonthViewRow
   GtkWidget          *day_cells[N_WEEKDAYS];
 
   GcalRange          *range;
-  gboolean            ceiled_height;
 
-  GListModel         *events;
-
-  GcalEventWidgetPool *event_widget_pool;
-
+  GListStore         *events;
   GHashTable         *layout_blocks;
   gboolean            layout_blocks_valid;
+
+  GcalContext        *context;
 };
+
+static gint          compare_events_cb                           (gconstpointer      a,
+                                                                  gconstpointer      b,
+                                                                  gpointer           user_data);
 
 static void          on_event_widget_activated_cb                (GcalEventWidget    *widget,
                                                                   GcalMonthViewRow   *self);
@@ -75,9 +77,8 @@ G_DEFINE_FINAL_TYPE (GcalMonthViewRow, gcal_month_view_row, GTK_TYPE_WIDGET)
 enum
 {
   PROP_0,
-  PROP_RANGE,
-  PROP_CEILED_HEIGHT,
-  N_PROPS
+  PROP_CONTEXT,
+  N_PROPS,
 };
 
 enum
@@ -89,7 +90,7 @@ enum
 };
 
 static guint signals[N_SIGNALS] = { 0, };
-static GParamSpec *properties [N_PROPS] = { NULL, };
+static GParamSpec *properties [N_PROPS];
 
 
 /*
@@ -100,7 +101,7 @@ typedef struct
 {
   GtkWidget *widget;
   graphene_rect_t rect;
-  gint normalized_x;
+  gint focal_x;
 } FocusEventData;
 
 static void
@@ -116,13 +117,13 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (FocusEventData, focus_event_data_free)
 static FocusEventData *
 focus_event_data_new (GtkWidget             *widget,
                       const graphene_rect_t *rect,
-                      gint                   normalized_x)
+                      gint                   focal_x)
 {
   g_autoptr (FocusEventData) focus_event_data = NULL;
 
   focus_event_data = g_new0 (FocusEventData, 1);
   focus_event_data->widget = widget;
-  focus_event_data->normalized_x = normalized_x;
+  focus_event_data->focal_x = focal_x;
   graphene_rect_init_from_rect (&focus_event_data->rect, rect);
 
   return g_steal_pointer (&focus_event_data);
@@ -147,9 +148,9 @@ static FocusEventData *
 create_focus_event_data (GcalMonthViewRow *self,
                          GtkWidget        *child)
 {
-  gint focal_x, normalized_x;
   graphene_rect_t rect;
   gboolean is_rtl;
+  gint focal_x;
 
   g_assert (GTK_IS_WIDGET (child));
 
@@ -158,9 +159,8 @@ create_focus_event_data (GcalMonthViewRow *self,
 
   is_rtl = gtk_widget_get_direction (GTK_WIDGET (self)) == GTK_TEXT_DIR_RTL;
   focal_x = rect.origin.x + (is_rtl ? rect.size.width : 0);
-  normalized_x = is_rtl ? -focal_x : focal_x;
 
-  return focus_event_data_new (child, &rect, normalized_x);
+  return focus_event_data_new (child, &rect, focal_x);
 }
 
 static FocusEventData *
@@ -190,6 +190,9 @@ find_first_event_widget (GcalMonthViewRow *self)
   g_autoptr (FocusEventData) candidate = NULL;
   g_autoptr (FocusEventData) nearest = NULL;
   GtkWidget *child;
+  gboolean is_rtl;
+
+  is_rtl = gtk_widget_get_direction (GTK_WIDGET (self)) == GTK_TEXT_DIR_RTL;
 
   for (child = gtk_widget_get_first_child (GTK_WIDGET (self));
        child != NULL;
@@ -205,10 +208,10 @@ find_first_event_widget (GcalMonthViewRow *self)
 
       if (nearest == NULL)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if (candidate->normalized_x < nearest->normalized_x)
+      else if ((is_rtl && candidate->focal_x > nearest->focal_x) ||
+               (!is_rtl && candidate->focal_x < nearest->focal_x))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if (candidate->normalized_x == nearest->normalized_x &&
-               candidate->rect.origin.y < nearest->rect.origin.y)
+      else if (candidate->focal_x == nearest->focal_x && candidate->rect.origin.y < nearest->rect.origin.y)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
     }
 
@@ -223,6 +226,9 @@ find_last_event_widget (GcalMonthViewRow *self)
   g_autoptr (FocusEventData) candidate = NULL;
   g_autoptr (FocusEventData) nearest = NULL;
   GtkWidget *child;
+  gboolean is_rtl;
+
+  is_rtl = gtk_widget_get_direction (GTK_WIDGET (self)) == GTK_TEXT_DIR_RTL;
 
   for (child = gtk_widget_get_first_child (GTK_WIDGET (self));
        child != NULL;
@@ -238,10 +244,10 @@ find_last_event_widget (GcalMonthViewRow *self)
 
       if (nearest == NULL)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if (candidate->normalized_x > nearest->normalized_x)
+      else if ((is_rtl && candidate->focal_x < nearest->focal_x) ||
+               (!is_rtl && candidate->focal_x > nearest->focal_x))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if (candidate->normalized_x == nearest->normalized_x &&
-               candidate->rect.origin.y > nearest->rect.origin.y)
+      else if (candidate->focal_x == nearest->focal_x && candidate->rect.origin.y > nearest->rect.origin.y)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
     }
 
@@ -258,13 +264,13 @@ find_nearest_vertical_event_widget (GcalMonthViewRow  *self,
   g_autoptr (FocusEventData) candidate = NULL;
   g_autoptr (FocusEventData) nearest = NULL;
   GtkWidget *child;
-  gboolean downward, upward, forward_or_backward;
+  gboolean downward, forward_or_backward;
+  gboolean is_rtl;
 
   GCAL_ENTRY;
 
   downward = direction == GTK_DIR_DOWN || direction == GTK_DIR_TAB_FORWARD;
-  upward = !downward;
-
+  is_rtl = gtk_widget_get_direction (GTK_WIDGET (self)) == GTK_TEXT_DIR_RTL;
   forward_or_backward = direction == GTK_DIR_TAB_FORWARD || direction == GTK_DIR_TAB_BACKWARD;
 
   for (child = gtk_widget_get_first_child (GTK_WIDGET (self));
@@ -287,20 +293,21 @@ find_nearest_vertical_event_widget (GcalMonthViewRow  *self,
                                        NULL))
         continue;
 
-      if (forward_or_backward && focused->normalized_x != candidate->normalized_x)
+      if (forward_or_backward && focused->focal_x != candidate->focal_x)
         continue;
 
       if ((downward && candidate->rect.origin.y < focused->rect.origin.y) ||
-          (upward && candidate->rect.origin.y > focused->rect.origin.y))
+          (!downward && candidate->rect.origin.y > focused->rect.origin.y))
         continue;
 
       if (nearest == NULL)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
       else if ((downward && candidate->rect.origin.y < nearest->rect.origin.y) ||
-               (upward && candidate->rect.origin.y > nearest->rect.origin.y))
+               (!downward && candidate->rect.origin.y > nearest->rect.origin.y))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
       else if (downward && candidate->rect.origin.y == nearest->rect.origin.y &&
-               candidate->normalized_x < nearest->normalized_x)
+               ((is_rtl && candidate->focal_x > nearest->focal_x) ||
+                (!is_rtl && candidate->focal_x < nearest->focal_x)))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
     }
 
@@ -350,6 +357,7 @@ find_nearest_horizontal_event_widget (GcalMonthViewRow  *self,
     {
       g_autoptr (FocusEventData) aux = NULL;
       gboolean candidate_intersects_vertically;
+      gboolean candidate_in_opposite_direction;
 
       if (!(aux = create_focus_event_data_candidate (self, child)))
         continue;
@@ -360,29 +368,28 @@ find_nearest_horizontal_event_widget (GcalMonthViewRow  *self,
       if (candidate->widget == focused->widget)
         continue;
 
-
-      if ((direction == GTK_DIR_TAB_FORWARD && candidate->normalized_x <= focused->normalized_x) ||
-          (direction == GTK_DIR_TAB_BACKWARD && candidate->normalized_x >= focused->normalized_x))
+      if (forward_or_backward &&
+          ((lateral == GTK_DIR_LEFT && candidate->focal_x >= focused->focal_x) ||
+           (lateral == GTK_DIR_RIGHT && candidate->focal_x <= focused->focal_x)))
         continue;
 
-      if ((direction == GTK_DIR_LEFT && ABS (candidate->normalized_x) > ABS (focused->normalized_x)) ||
-          (direction == GTK_DIR_RIGHT && ABS (candidate->normalized_x) < ABS (focused->normalized_x)))
-        continue;
+      candidate_in_opposite_direction = ((lateral == GTK_DIR_LEFT && candidate->focal_x > focused->focal_x) ||
+                                         (lateral == GTK_DIR_RIGHT && candidate->focal_x < focused->focal_x));
 
       candidate_intersects_vertically =
           graphene_rect_intersection (&GRAPHENE_RECT_INIT (0, focused->rect.origin.y, 1, focused->rect.size.height),
                                       &GRAPHENE_RECT_INIT (0, candidate->rect.origin.y, 1, candidate->rect.size.height),
                                       NULL);
 
-      if (!forward_or_backward && !candidate_intersects_vertically)
+      if (!forward_or_backward && (!candidate_intersects_vertically || candidate_in_opposite_direction))
         continue;
 
       if (nearest == NULL)
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if ((lateral == GTK_DIR_LEFT && ABS (candidate->normalized_x) > ABS (nearest->normalized_x)) ||
-               (lateral == GTK_DIR_RIGHT && ABS (candidate->normalized_x) < ABS (nearest->normalized_x)))
+      else if ((lateral == GTK_DIR_LEFT && candidate->focal_x > nearest->focal_x) ||
+               (lateral == GTK_DIR_RIGHT && candidate->focal_x < nearest->focal_x))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
-      else if (ABS (candidate->normalized_x) == ABS (nearest->normalized_x) &&
+      else if (candidate->focal_x == nearest->focal_x &&
                ((direction == GTK_DIR_TAB_FORWARD && candidate->rect.origin.y < nearest->rect.origin.y) ||
                 (direction == GTK_DIR_TAB_BACKWARD && candidate->rect.origin.y > nearest->rect.origin.y)))
         swap_focus_event_data (&nearest, g_steal_pointer (&candidate));
@@ -541,14 +548,14 @@ prepare_layout_blocks (GcalMonthViewRow *self,
 {
   GPtrArray *blocks_per_day[N_WEEKDAYS];
   gboolean cell_will_overflow[N_WEEKDAYS] = { FALSE, };
-  guint combined_height[N_WEEKDAYS] = { 0, };
-  guint content_height[N_WEEKDAYS] = { 0, };
+  guint available_height_without_overflow[N_WEEKDAYS] = { 0, };
+  guint available_height_with_overflow[N_WEEKDAYS] = { 0, };
   guint weekday_heights[N_WEEKDAYS] = { 0, };
   guint n_events;
 
   g_assert (self->layout_blocks_valid);
 
-  n_events = g_list_model_get_n_items (self->events);
+  n_events = g_list_model_get_n_items (G_LIST_MODEL (self->events));
 
   for (guint i = 0; i < N_WEEKDAYS; i++)
     {
@@ -556,12 +563,10 @@ prepare_layout_blocks (GcalMonthViewRow *self,
       gint content_space;
 
       content_space = gcal_month_cell_get_content_space (GCAL_MONTH_CELL (self->day_cells[i]));
-      if (self->ceiled_height)
-        content_space--;
       overflow_height = gcal_month_cell_get_overflow_height (GCAL_MONTH_CELL (self->day_cells[i]));
 
-      combined_height[i] = content_space + overflow_height;
-      content_height[i] = content_space;
+      available_height_without_overflow[i] = content_space;
+      available_height_with_overflow[i] = content_space - overflow_height;
       blocks_per_day[i] = g_ptr_array_sized_new (n_events);
     }
 
@@ -571,10 +576,7 @@ prepare_layout_blocks (GcalMonthViewRow *self,
       g_autoptr (GcalEvent) event = NULL;
       GPtrArray *blocks;
 
-      event = g_list_model_get_item (self->events, i);
-
-      if (!gcal_event_overlaps (event, self->range))
-        continue;
+      event = g_list_model_get_item (G_LIST_MODEL (self->events), i);
 
       blocks = g_hash_table_lookup (self->layout_blocks, event);
       g_assert (blocks != NULL);
@@ -598,7 +600,7 @@ prepare_layout_blocks (GcalMonthViewRow *self,
 
               g_ptr_array_add (blocks_per_day[cell], block);
               weekday_heights[cell] += block->height;
-              cell_will_overflow[cell] |= weekday_heights[cell] > combined_height[cell];
+              cell_will_overflow[cell] |= weekday_heights[cell] > available_height_without_overflow[cell];
             }
         }
     }
@@ -621,9 +623,9 @@ prepare_layout_blocks (GcalMonthViewRow *self,
               gint available_height;
 
               if (cell_will_overflow[block_cell])
-                available_height = content_height[block_cell];
+                available_height = available_height_with_overflow[block_cell];
               else
-                available_height = combined_height[block_cell];
+                available_height = available_height_without_overflow[block_cell];
 
               block->visible &= available_height > block->height;
             }
@@ -632,8 +634,8 @@ prepare_layout_blocks (GcalMonthViewRow *self,
             {
               if (block->visible)
                 {
-                  content_height[block_cell] -= block->height;
-                  combined_height[block_cell] -= block->height;
+                  available_height_with_overflow[block_cell] -= block->height;
+                  available_height_without_overflow[block_cell] -= block->height;
                 }
               else
                 {
@@ -647,92 +649,9 @@ prepare_layout_blocks (GcalMonthViewRow *self,
     g_clear_pointer (&blocks_per_day[i], g_ptr_array_unref);
 }
 
-static GHashTable *
-extract_current_event_widgets (GcalMonthViewRow *self)
-{
-  g_autoptr (GHashTable) event_widgets = NULL;
-  GHashTableIter iter;
-  GPtrArray *blocks;
-  GcalEvent *event;
-
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-
-  event_widgets = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, (GDestroyNotify) g_ptr_array_unref);
-
-  g_hash_table_iter_init (&iter, self->layout_blocks);
-  while (g_hash_table_iter_next (&iter, (gpointer *) &event, (gpointer *) &blocks))
-    {
-      g_autoptr (GPtrArray) widgets = NULL;
-
-      g_assert (GCAL_IS_EVENT (event));
-      g_assert (blocks != NULL);
-
-      widgets = g_ptr_array_new_full (blocks->len, (GDestroyNotify) gtk_widget_unparent);
-
-      for (unsigned int i = 0; i < blocks->len; i++)
-        {
-          GcalEventBlock *block = g_ptr_array_index (blocks, i);
-
-          g_ptr_array_add (widgets, g_steal_pointer (&block->event_widget));
-        }
-
-      g_hash_table_insert (event_widgets, event, g_steal_pointer (&widgets));
-    }
-
-  return g_steal_pointer (&event_widgets);
-}
-
-static void
-return_remaining_event_widgets_to_pool (GcalMonthViewRow *self,
-                                        GHashTable       *event_widgets)
-{
-  GHashTableIter iter;
-  GPtrArray *widgets;
-
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-  g_assert (event_widgets != NULL);
-
-  g_hash_table_iter_init (&iter, event_widgets);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &widgets))
-    {
-      g_assert (widgets != NULL);
-
-      while (widgets->len > 0)
-        {
-          GtkWidget *widget = g_ptr_array_steal_index_fast (widgets, 0);
-
-          g_signal_handlers_disconnect_by_func (widget, on_event_widget_activated_cb, self);
-          gtk_widget_unparent (widget);
-
-          gcal_event_widget_pool_reclaim (self->event_widget_pool, g_steal_pointer (&widget));
-        }
-
-      g_hash_table_iter_remove (&iter);
-    }
-
-  g_assert (g_hash_table_size (event_widgets) == 0);
-}
-
-static GtkWidget *
-pick_existing_event_widget (GHashTable *event_widgets,
-                            GcalEvent  *event)
-{
-  GPtrArray *widgets;
-
-  g_assert (event_widgets != NULL);
-  g_assert (GCAL_IS_EVENT (event));
-
-  widgets = g_hash_table_lookup (event_widgets, event);
-  if (!widgets || widgets->len == 0)
-    return NULL;
-
-  return g_ptr_array_steal_index_fast (widgets, 0);
-}
-
 static void
 recalculate_layout_blocks (GcalMonthViewRow *self)
 {
-  g_autoptr (GHashTable) event_widgets = NULL;
   g_autoptr (GDateTime) range_start = NULL;
   guint events_at_weekday[N_WEEKDAYS] = { 0, };
   guint n_events;
@@ -742,9 +661,7 @@ recalculate_layout_blocks (GcalMonthViewRow *self)
   g_assert (!self->layout_blocks_valid);
 
   range_start = gcal_range_get_start (self->range);
-  n_events = g_list_model_get_n_items (self->events);
-
-  event_widgets = extract_current_event_widgets (self);
+  n_events = g_list_model_get_n_items (G_LIST_MODEL (self->events));
 
   g_hash_table_remove_all (self->layout_blocks);
 
@@ -756,10 +673,7 @@ recalculate_layout_blocks (GcalMonthViewRow *self)
       gint first_cell;
       gint last_cell;
 
-      event = g_list_model_get_item (self->events, i);
-
-      if (!gcal_event_overlaps (event, self->range))
-        continue;
+      event = g_list_model_get_item (G_LIST_MODEL (self->events), i);
 
       calculate_event_cells (self, event, &first_cell, &last_cell);
       g_assert (last_cell >= first_cell);
@@ -768,30 +682,33 @@ recalculate_layout_blocks (GcalMonthViewRow *self)
 
       for (gint cell = first_cell; cell <= last_cell; cell++)
         {
-          gboolean event_will_break;
-
           events_at_weekday[cell]++;
 
-          event_will_break = cell > first_cell && events_at_weekday[cell] != events_at_weekday[cell - 1];
-
-          if (!block || event_will_break)
+          if (!block)
             {
-              GtkWidget *event_widget = pick_existing_event_widget (event_widgets, event);
+              GtkWidget *event_widget;
 
-              if (!event_widget)
-                {
-                  event_widget = gcal_event_widget_pool_take_or_create (self->event_widget_pool, event);
-
-                  g_assert (GCAL_IS_EVENT_WIDGET (event_widget));
-
-                  setup_child_widget (self, event_widget);
-                }
-
+              event_widget = gcal_event_widget_new (self->context, event);
               if (!gcal_event_get_all_day (event) && !gcal_event_is_multiday (event))
                 gcal_event_widget_set_timestamp_policy (GCAL_EVENT_WIDGET (event_widget), GCAL_TIMESTAMP_POLICY_START);
+              setup_child_widget (self, event_widget);
 
               block = g_new (GcalEventBlock, 1);
               block->event_widget = g_steal_pointer (&event_widget);
+              block->length = 1;
+              block->cell = cell;
+
+              g_ptr_array_add (blocks, block);
+            }
+          else if (cell > first_cell && events_at_weekday[cell] != events_at_weekday[cell - 1])
+            {
+              GtkWidget *new_event_widget;
+
+              new_event_widget = gcal_event_widget_clone (GCAL_EVENT_WIDGET (block->event_widget));
+              setup_child_widget (self, new_event_widget);
+
+              block = g_new (GcalEventBlock, 1);
+              block->event_widget = g_steal_pointer (&new_event_widget);
               block->length = 1;
               block->cell = cell;
 
@@ -832,8 +749,6 @@ recalculate_layout_blocks (GcalMonthViewRow *self)
       g_hash_table_insert (self->layout_blocks, event, g_steal_pointer (&blocks));
     }
 
-  return_remaining_event_widgets_to_pool (self, event_widgets);
-
   self->layout_blocks_valid = TRUE;
 
   GCAL_EXIT;
@@ -847,13 +762,13 @@ invalidate_layout_blocks (GcalMonthViewRow *self)
   if (!self->layout_blocks_valid)
     GCAL_RETURN ();
 
+  self->layout_blocks_valid = FALSE;
+
   if (gtk_widget_get_mapped (GTK_WIDGET (self)))
     {
       gtk_widget_add_tick_callback (GTK_WIDGET (self), widget_tick_cb, self, NULL);
       gtk_widget_queue_allocate (GTK_WIDGET (self));
     }
-
-  self->layout_blocks_valid = FALSE;
 
   GCAL_EXIT;
 }
@@ -863,34 +778,18 @@ invalidate_layout_blocks (GcalMonthViewRow *self)
  * Callbacks
  */
 
-static gboolean
-filter_by_range_cb (gpointer item,
-                    gpointer user_data)
+static gint
+compare_events_cb (gconstpointer a,
+                   gconstpointer b,
+                   gpointer      user_data)
 {
-  GcalMonthViewRow *self = user_data;
-  GcalEvent *event = item;
+  GcalEvent *event_a = (GcalEvent *)a;
+  GcalEvent *event_b = (GcalEvent *)b;
 
-  g_assert (GCAL_IS_EVENT (event));
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
+  if (gcal_event_is_multiday (event_a) != gcal_event_is_multiday (event_b))
+    return gcal_event_is_multiday (event_b) - gcal_event_is_multiday (event_a);
 
-  if (!self->range)
-    return FALSE;
-
-  return gcal_event_overlaps (event, self->range);
-}
-
-static void
-events_changed_cb (GListModel       *model,
-                   guint             position,
-                   guint             removed,
-                   guint             added,
-                   GcalMonthViewRow *self)
-{
-  GCAL_ENTRY;
-
-  invalidate_layout_blocks (self);
-
-  GCAL_EXIT;
+  return gcal_event_compare (event_a, event_b);
 }
 
 static void
@@ -947,7 +846,10 @@ gcal_month_view_row_map (GtkWidget *widget)
   GTK_WIDGET_CLASS (gcal_month_view_row_parent_class)->map (widget);
 
   if (!self->layout_blocks_valid)
-    recalculate_layout_blocks (self);
+    {
+      gtk_widget_add_tick_callback (GTK_WIDGET (self), widget_tick_cb, self, NULL);
+      gtk_widget_queue_allocate (GTK_WIDGET (self));
+    }
 }
 
 static gboolean
@@ -1125,17 +1027,14 @@ gcal_month_view_row_size_allocate (GtkWidget *widget,
       for (guint i = 0; i < N_WEEKDAYS; i++)
         cell_y[i] = gcal_month_cell_get_header_height (GCAL_MONTH_CELL (self->day_cells[i]));
 
-      n_events = g_list_model_get_n_items (self->events);
+      n_events = g_list_model_get_n_items (G_LIST_MODEL (self->events));
 
       for (guint i = 0; i < n_events; i++)
         {
           g_autoptr (GcalEvent) event = NULL;
           GPtrArray *blocks;
 
-          event = g_list_model_get_item (self->events, i);
-
-          if (!gcal_event_overlaps (event, self->range))
-            continue;
+          event = g_list_model_get_item (G_LIST_MODEL (self->events), i);
 
           blocks = g_hash_table_lookup (self->layout_blocks, event);
           g_assert (blocks != NULL);
@@ -1194,7 +1093,6 @@ gcal_month_view_row_finalize (GObject *object)
 {
   GcalMonthViewRow *self = (GcalMonthViewRow *)object;
 
-  g_clear_object (&self->event_widget_pool);
   g_clear_pointer (&self->range, gcal_range_unref);
 
   G_OBJECT_CLASS (gcal_month_view_row_parent_class)->finalize (object);
@@ -1210,11 +1108,8 @@ gcal_month_view_row_get_property (GObject    *object,
 
   switch (prop_id)
     {
-    case PROP_CEILED_HEIGHT:
-      g_value_set_boolean (value, gcal_month_view_row_get_ceiled_height (self));
-      break;
-    case PROP_RANGE:
-      g_value_set_boxed (value, self->range);
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
       break;
 
     default:
@@ -1232,11 +1127,8 @@ gcal_month_view_row_set_property (GObject      *object,
 
   switch (prop_id)
     {
-    case PROP_CEILED_HEIGHT:
-      gcal_month_view_row_set_ceiled_height (self, g_value_get_boolean (value));
-      break;
-    case PROP_RANGE:
-      gcal_month_view_row_set_range (self, g_value_get_boxed (value));
+    case PROP_CONTEXT:
+      gcal_month_view_row_set_context (self, g_value_get_object (value));
       break;
 
     default:
@@ -1260,23 +1152,11 @@ gcal_month_view_row_class_init (GcalMonthViewRowClass *klass)
   widget_class->measure = gcal_month_view_row_measure;
   widget_class->size_allocate = gcal_month_view_row_size_allocate;
 
-  /**
-   * GcalMonthViewRow:ceiled-height:
-   *
-   * Whether the row should negate the compensated pixel when allocating overflow.
-   *
-   * This property should only be set to %TRUE if the height of [class@MonthView]
-   * is not divisible by the amount of visible rows, and this row's height is being
-   * allocated an additional pixel.
-   */
-  properties[PROP_CEILED_HEIGHT] =
-      g_param_spec_boolean ("ceiled-height", NULL, NULL,
-                            FALSE,
-                            G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
-
-  properties[PROP_RANGE] = g_param_spec_boxed ("range", NULL, NULL,
-                                               GCAL_TYPE_RANGE,
-                                               G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "The GcalContext of the application",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_PROPS, properties);
 
@@ -1310,9 +1190,7 @@ gcal_month_view_row_class_init (GcalMonthViewRowClass *klass)
 static void
 gcal_month_view_row_init (GcalMonthViewRow *self)
 {
-  self->events = G_LIST_MODEL (gtk_filter_list_model_new (NULL, GTK_FILTER (gtk_custom_filter_new (filter_by_range_cb, self, NULL))));
-  g_signal_connect (self->events, "items-changed", G_CALLBACK (events_changed_cb), self);
-
+  self->events = g_list_store_new (GCAL_TYPE_EVENT);
   self->layout_blocks = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, (GDestroyNotify) g_ptr_array_unref);
   self->layout_blocks_valid = TRUE;
 
@@ -1330,18 +1208,42 @@ gcal_month_view_row_init (GcalMonthViewRow *self)
 }
 
 GtkWidget *
-gcal_month_view_row_new (GcalEventWidgetPool *event_widget_pool)
+gcal_month_view_row_new (void)
 {
-  g_autoptr (GcalMonthViewRow) self = NULL;
-
-  g_assert (GCAL_IS_EVENT_WIDGET_POOL (event_widget_pool));
-
-  self = g_object_new (GCAL_TYPE_MONTH_VIEW_ROW, NULL);
-  self->event_widget_pool = g_object_ref (event_widget_pool);
-
-  return GTK_WIDGET (g_steal_pointer (&self));
+  return g_object_new (GCAL_TYPE_MONTH_VIEW_ROW, NULL);
 }
 
+GcalContext*
+gcal_month_view_row_get_context (GcalMonthViewRow *self)
+{
+  g_return_val_if_fail (GCAL_IS_MONTH_VIEW_ROW (self), NULL);
+
+  return self->context;
+}
+
+void
+gcal_month_view_row_set_context (GcalMonthViewRow *self,
+                                 GcalContext      *context)
+{
+  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+
+  if (g_set_object (&self->context, context))
+    {
+      for (guint i = 0; i < N_WEEKDAYS; i++)
+        gcal_month_cell_set_context (GCAL_MONTH_CELL (self->day_cells[i]), context);
+
+      g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_CONTEXT]);
+    }
+}
+
+/**
+ * gcal_month_view_row_get_range:
+ * @self: a #GcalMonthViewRow
+ *
+ * Retrieves the range for this row.
+ *
+ * Returns: (transfer full) (nullable): the row's range
+ */
 GcalRange *
 gcal_month_view_row_get_range (GcalMonthViewRow *self)
 {
@@ -1355,7 +1257,6 @@ gcal_month_view_row_set_range (GcalMonthViewRow *self,
                                GcalRange        *range)
 {
   g_autoptr (GDateTime) start = NULL;
-  GtkFilter *filter;
 
   g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
   g_return_if_fail (range != NULL);
@@ -1368,6 +1269,11 @@ gcal_month_view_row_set_range (GcalMonthViewRow *self,
   g_clear_pointer (&self->range, gcal_range_unref);
   self->range = gcal_range_ref (range);
 
+  /* Preemptively remove all event widgets */
+  g_list_store_remove_all (self->events);
+  g_hash_table_remove_all (self->layout_blocks);
+  invalidate_layout_blocks (self);
+
   start = gcal_range_get_start (range);
   for (guint i = 0; i < N_WEEKDAYS; i++)
     {
@@ -1375,23 +1281,57 @@ gcal_month_view_row_set_range (GcalMonthViewRow *self,
       gcal_month_cell_set_date (GCAL_MONTH_CELL (self->day_cells[i]), day);
     }
 
-  filter = gtk_filter_list_model_get_filter (GTK_FILTER_LIST_MODEL (self->events));
-  g_assert (GTK_IS_CUSTOM_FILTER (filter));
-  gtk_filter_changed (filter, GTK_FILTER_CHANGE_DIFFERENT);
-
-  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_RANGE]);
-
   GCAL_EXIT;
 }
 
 void
-gcal_month_view_row_set_model (GcalMonthViewRow *self,
-                               GListModel       *model)
+gcal_month_view_row_add_event (GcalMonthViewRow *self,
+                               GcalEvent        *event)
 {
   g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_if_fail (GCAL_IS_EVENT (event));
 
-  gtk_filter_list_model_set_model (GTK_FILTER_LIST_MODEL (self->events), model);
+  g_list_store_insert_sorted (self->events, event, compare_events_cb, self);
   invalidate_layout_blocks (self);
+}
+
+void
+gcal_month_view_row_remove_event (GcalMonthViewRow *self,
+                                  GcalEvent        *event)
+{
+  GPtrArray *blocks;
+  guint position;
+
+  g_return_if_fail (GCAL_IS_MONTH_VIEW_ROW (self));
+  g_return_if_fail (GCAL_IS_EVENT (event));
+
+  GCAL_ENTRY;
+
+  if (!g_list_store_find (self->events, event, &position))
+    {
+      g_warning ("%s: Widget with uuid: %s not found in view: %s",
+                 G_STRFUNC,
+                 gcal_event_get_uid (event),
+                 G_OBJECT_TYPE_NAME (self));
+      GCAL_RETURN ();
+    }
+
+  /* Remove event widgets from layout blocks and unparent them */
+  blocks = g_hash_table_lookup (self->layout_blocks, event);
+  if (blocks)
+    {
+      for (guint i = 0; i < blocks->len; i++)
+        {
+          GcalEventBlock *block = g_ptr_array_index (blocks, i);
+          gtk_widget_unparent (block->event_widget);
+        }
+      g_hash_table_remove (self->layout_blocks, event);
+    }
+
+  g_list_store_remove (self->events, position);
+  invalidate_layout_blocks (self);
+
+  GCAL_EXIT;
 }
 
 GList*
@@ -1457,46 +1397,7 @@ gcal_month_view_row_focus_adjacent_cell (GcalMonthViewRow *self,
 
   data = create_focus_event_data (self, widget);
 
-  cell = gcal_month_view_row_get_cell_at_x (self, ABS (data->normalized_x));
+  cell = gcal_month_view_row_get_cell_at_x (self, data->focal_x);
 
   return gtk_widget_grab_focus (cell);
-}
-
-/**
- * gcal_month_view_row_get_ceiled_height:
- * @self: a #GcalMonthViewRow
- *
- * Gets whether the row is negating the compensated pixel.
- *
- * Returns: %TRUE if the row is negating the compensated pixel.
- */
-gboolean
-gcal_month_view_row_get_ceiled_height (GcalMonthViewRow *self)
-{
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-
-  return self->ceiled_height;
-}
-
-/**
- * gcal_month_view_row_set_ceiled_height:
- * @self: a #GcalMonthViewRow
- * @ceiled_height: %TRUE if the row should negate the compensated pixel.
- *
- * Sets whether the row should negate the compensated pixel.
- *
- * See [property@MonthViewRow:ceiled-height] for more details.
- */
-void
-gcal_month_view_row_set_ceiled_height (GcalMonthViewRow *self,
-                                       gboolean          ceiled_height)
-{
-  g_assert (GCAL_IS_MONTH_VIEW_ROW (self));
-
-  if (self->ceiled_height == ceiled_height)
-    return;
-
-  self->ceiled_height = ceiled_height;
-
-  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_CEILED_HEIGHT]);
 }

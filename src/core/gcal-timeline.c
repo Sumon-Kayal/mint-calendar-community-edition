@@ -22,37 +22,66 @@
 
 #include "gcal-calendar.h"
 #include "gcal-calendar-monitor.h"
+#include "gcal-context.h"
 #include "gcal-date-time-utils.h"
 #include "gcal-debug.h"
 #include "gcal-event.h"
 #include "gcal-range-tree.h"
 #include "gcal-timeline.h"
 #include "gcal-timeline-subscriber.h"
-#include "gcal-utils.h"
 
 #include <libedataserver/libedataserver.h>
+
+#define BATCH_SIZE 5
+
+typedef enum
+{
+  ADD_EVENT,
+  UPDATE_EVENT,
+  REMOVE_EVENT,
+} QueueEvent;
+
+typedef struct
+{
+  GcalTimeline       *timeline;
+
+  QueueEvent          queue_event;
+
+  GcalTimelineSubscriber *subscriber;
+  GcalEvent          *event;
+  GcalEvent          *old_event;
+  gboolean            update_range_tree;
+} QueueData;
+
+typedef struct
+{
+  GSource             parent;
+  GcalTimeline       *timeline;
+} TimelineSource;
 
 struct _GcalTimeline
 {
   GObject             parent_instance;
 
-  double              augmentation_factor;
-
   guint               update_range_idle_id;
   GcalRange          *range;
-  GcalRange          *augmented_range;
 
+  GcalRangeTree      *events;
   gchar              *filter;
 
   GHashTable         *calendars; /* GcalCalendar* -> GcalCalendarMonitor* */
   gboolean            complete;
 
-  GListStore         *calendar_monitors;
-  GListModel         *events_model;
-
   GHashTable         *subscribers; /* GcalTimelineSubscriber* -> SubscriberData* */
+  GcalRangeTree      *subscriber_ranges;
 
   GCancellable       *cancellable;
+
+  GHashTable         *queued_adds;
+  GQueue             *event_queue;
+  GSource            *timeline_source;
+
+  GcalContext        *context;
 };
 
 G_DEFINE_TYPE (GcalTimeline, gcal_timeline, G_TYPE_OBJECT)
@@ -61,6 +90,7 @@ enum
 {
   PROP_0,
   PROP_COMPLETE,
+  PROP_CONTEXT,
   PROP_FILTER,
   N_PROPS
 };
@@ -69,109 +99,106 @@ static GParamSpec *properties [N_PROPS] = { NULL, };
 
 
 /*
- * SubscriberData
- */
-
-typedef struct
-{
-  GcalRange *range;
-  GtkFilterListModel *events;
-  GtkSortListModel *sorted_events;
-} SubscriberData;
-
-static void
-subscriber_data_free (SubscriberData *data)
-{
-  gtk_filter_list_model_set_model (data->events, NULL);
-
-  g_clear_pointer (&data->range, gcal_range_unref);
-  g_clear_object (&data->sorted_events);
-  g_clear_object (&data->events);
-  g_clear_pointer (&data, g_free);
-}
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (SubscriberData, subscriber_data_free)
-
-static gboolean
-event_in_subscriber_range_func (gpointer item,
-                                gpointer user_data)
-{
-  SubscriberData *data = user_data;
-
-  g_assert (GCAL_IS_EVENT (item));
-
-  if (!data->range)
-    return FALSE;
-
-  return gcal_event_overlaps (item, data->range);
-}
-
-static int
-compare_events_by_length (GcalEvent *event_a,
-                          GcalEvent *event_b)
-{
-  time_t time_s1, time_s2;
-  time_t time_e1, time_e2;
-
-  time_s1 = g_date_time_to_unix (gcal_event_get_date_start (event_a));
-  time_e1 = g_date_time_to_unix (gcal_event_get_date_end (event_a));
-
-  time_s2 = g_date_time_to_unix (gcal_event_get_date_start (event_b));
-  time_e2 = g_date_time_to_unix (gcal_event_get_date_end (event_b));
-
-  return (time_e2 - time_s2) - (time_e1 - time_s1);
-}
-
-static gint
-compare_events_cb (gconstpointer a,
-                   gconstpointer b,
-                   gpointer      user_data)
-{
-  g_autoptr (ICalTime) icaltime_a = NULL;
-  g_autoptr (ICalTime) icaltime_b = NULL;
-  GcalEvent *event_a = (GcalEvent *) a;
-  GcalEvent *event_b = (GcalEvent *) b;
-  gint diff;
-
-  diff = gcal_event_is_multiday (event_b) - gcal_event_is_multiday (event_a);
-  if (diff != 0)
-    return diff;
-
-  diff = g_date_time_compare (gcal_event_get_date_start (event_a), gcal_event_get_date_start (event_b));
-  if (diff != 0)
-    return diff;
-
-  diff = compare_events_by_length (event_a, event_b);
-  if (diff != 0)
-    return diff;
-
-  icaltime_a = e_cal_component_get_last_modified (gcal_event_get_component (event_a));
-  icaltime_b = e_cal_component_get_last_modified (gcal_event_get_component (event_b));
-
-  return icaltime_a && icaltime_b ? i_cal_time_compare (icaltime_b, icaltime_a) : 0;
-}
-
-static SubscriberData *
-subscriber_data_new (GcalTimeline           *self,
-                     GcalTimelineSubscriber *subscriber)
-{
-  g_autoptr (GtkCustomFilter) filter = NULL;
-  g_autoptr (SubscriberData) data = NULL;
-
-  data = g_new0 (SubscriberData, 1);
-  data->range = gcal_timeline_subscriber_get_range (subscriber);
-
-  filter = gtk_custom_filter_new (event_in_subscriber_range_func, data, NULL);
-  data->events = gtk_filter_list_model_new (g_object_ref (self->events_model), GTK_FILTER (g_steal_pointer (&filter)));
-  data->sorted_events = gtk_sort_list_model_new (G_LIST_MODEL (g_object_ref (data->events)),
-                                                 GTK_SORTER (gtk_custom_sorter_new (compare_events_cb, NULL, NULL)));
-
-  return g_steal_pointer (&data);
-}
-
-/*
  * Auxiliary methods
  */
+
+static gchar*
+format_subscriber_event_id (GcalTimelineSubscriber *subscriber,
+                            GcalEvent              *event)
+{
+  return g_strdup_printf ("%s:%s", G_OBJECT_TYPE_NAME (subscriber), gcal_event_get_uid (event));
+}
+
+static QueueData *
+queue_data_new (GcalTimeline           *timeline,
+                QueueEvent              queue_event,
+                GcalTimelineSubscriber *subscriber,
+                GcalEvent              *event,
+                GcalEvent              *old_event,
+                gboolean                update_range_tree)
+{
+  QueueData *queue_data = g_new0 (QueueData, 1);
+
+  queue_data->timeline = timeline;
+  queue_data->queue_event = queue_event;
+  queue_data->subscriber = subscriber ? g_object_ref (subscriber) : NULL;
+  queue_data->event = event ? g_object_ref (event) : NULL;
+  queue_data->old_event = old_event ? g_object_ref (old_event) : NULL;
+  queue_data->update_range_tree = update_range_tree;
+
+  return queue_data;
+}
+
+static void
+queue_data_free (QueueData *queue_data)
+{
+  g_clear_object (&queue_data->subscriber);
+  g_clear_object (&queue_data->old_event);
+  g_clear_object (&queue_data->event);
+  g_free (queue_data);
+}
+
+static void
+queue_event_data (GcalTimeline           *self,
+                  QueueEvent              queue_event,
+                  GcalTimelineSubscriber *subscriber,
+                  GcalEvent              *event,
+                  GcalEvent              *old_event,
+                  gboolean                update_range_tree)
+{
+  g_autofree gchar *subscriber_event_id = NULL;
+
+  if (subscriber)
+    {
+      subscriber_event_id = format_subscriber_event_id (subscriber, event);
+
+      switch (queue_event)
+        {
+        case ADD_EVENT:
+        case UPDATE_EVENT:
+          break;
+        case REMOVE_EVENT:
+            {
+              GList *queued_add_link;
+
+              queued_add_link = g_hash_table_lookup (self->queued_adds, subscriber_event_id);
+              if (queued_add_link)
+                {
+                  QueueData *queued_add = queued_add_link->data;
+
+                  GCAL_TRACE_MSG ("Removing ADD_EVENT for event '%s' (%s) from event queue",
+                                  gcal_event_get_summary (event),
+                                  subscriber_event_id);
+
+                  g_hash_table_remove (self->queued_adds, subscriber_event_id);
+                  g_queue_delete_link (self->event_queue, queued_add_link);
+                  queue_data_free (queued_add);
+                  return;
+                }
+            }
+          break;
+        }
+    }
+
+  g_queue_push_tail (self->event_queue,
+                     queue_data_new (self, queue_event, subscriber, event, old_event, update_range_tree));
+
+  if (subscriber)
+    {
+      switch (queue_event)
+        {
+        case ADD_EVENT:
+          g_hash_table_insert (self->queued_adds,
+                               g_steal_pointer (&subscriber_event_id),
+                               g_queue_peek_tail_link (self->event_queue));
+          break;
+
+        case UPDATE_EVENT:
+        case REMOVE_EVENT:
+          break;
+        }
+    }
+}
 
 static void
 update_completed_calendars (GcalTimeline *self)
@@ -206,62 +233,38 @@ update_completed_calendars (GcalTimeline *self)
 }
 
 static void
-set_model_on_subscriber (GcalTimelineSubscriber *subscriber,
-                         GListModel             *model)
+add_event_to_subscriber (GcalTimelineSubscriber *subscriber,
+                         GcalEvent              *event)
 {
-  /* Optional while we transition away from add/update/remove_event */
-  if (!GCAL_TIMELINE_SUBSCRIBER_GET_IFACE (subscriber)->set_model)
-    return;
-
-  GCAL_TRACE_MSG ("Setting event model %p on subscriber %s",
-                  model,
+  GCAL_TRACE_MSG ("Adding event %s to subscriber %s",
+                  gcal_event_get_uid (event),
                   G_OBJECT_TYPE_NAME (subscriber));
 
-  GCAL_TIMELINE_SUBSCRIBER_GET_IFACE (subscriber)->set_model (subscriber, model);
+  GCAL_TIMELINE_SUBSCRIBER_GET_IFACE (subscriber)->add_event (subscriber, event);
 }
 
-static GcalRange *
-augment_range (GcalRange *range,
-               double     augmentation_factor)
+static void
+update_subscriber_event (GcalTimelineSubscriber *subscriber,
+                         GcalEvent              *old_event,
+                         GcalEvent              *event)
 {
-  g_autoptr (GcalRange) augmented_range = NULL;
-  g_autoptr (GDateTime) range_start = NULL;
-  g_autoptr (GDateTime) range_end = NULL;
-  GTimeSpan timespan;
-  GTimeSpan offset;
+  GCAL_TRACE_MSG ("Updating event '%s' (%s) at subscriber %s",
+                  gcal_event_get_summary (event),
+                  gcal_event_get_uid (event),
+                  G_OBJECT_TYPE_NAME (subscriber));
 
-  g_assert (range != NULL);
-  g_assert (augmentation_factor >= 1.0 || G_APPROX_VALUE (augmentation_factor, 1.0, DBL_EPSILON));
+  GCAL_TIMELINE_SUBSCRIBER_GET_IFACE (subscriber)->update_event (subscriber, old_event, event);
+}
+static void
+remove_event_from_subscriber (GcalTimelineSubscriber *subscriber,
+                              GcalEvent              *event)
+{
+  GCAL_TRACE_MSG ("Removing event '%s' (%s) from subscriber %s",
+                  gcal_event_get_summary (event),
+                  gcal_event_get_uid (event),
+                  G_OBJECT_TYPE_NAME (subscriber));
 
-  if (G_APPROX_VALUE (augmentation_factor, 1.0, DBL_EPSILON))
-    {
-#ifdef GCAL_ENABLE_TRACE
-      GCAL_TRACE_MSG ("%s: Augmenting range by 1.0, skipping", G_STRFUNC);
-#endif
-      return gcal_range_ref (range);
-    }
-
-  range_start = gcal_range_get_start (range);
-  range_end = gcal_range_get_end (range);
-
-  timespan = g_date_time_difference (range_end, range_start);
-  g_assert (timespan > 0);
-
-  offset = (timespan / 2) * augmentation_factor;
-
-  augmented_range = gcal_range_new_take (g_date_time_add (range_start, -offset),
-                                         g_date_time_add (range_end, offset),
-                                         gcal_range_get_range_type (range));
-#ifdef GCAL_ENABLE_TRACE
-    {
-      g_autofree char *range_str = gcal_range_to_string (range);
-      g_autofree char *augmented_range_str = gcal_range_to_string (augmented_range);
-
-      GCAL_TRACE_MSG ("%s: Range %s augmented to %s", G_STRFUNC, range_str, augmented_range_str);
-    }
-#endif
-
-  return g_steal_pointer (&augmented_range);
+  GCAL_TIMELINE_SUBSCRIBER_GET_IFACE (subscriber)->remove_event (subscriber, event);
 }
 
 static void
@@ -304,43 +307,15 @@ update_range (GcalTimeline *self)
 
       if (!self->range || gcal_range_compare (self->range, new_range) != 0)
         {
-          g_autoptr (GcalRange) new_augmented_range = NULL;
-
           g_clear_pointer (&self->range, gcal_range_unref);
           self->range = g_steal_pointer (&new_range);
-
-          if (self->augmented_range)
-            {
-              switch (gcal_range_calculate_overlap (self->range, self->augmented_range, NULL))
-                {
-                case GCAL_RANGE_NO_OVERLAP:
-                case GCAL_RANGE_INTERSECTS:
-                case GCAL_RANGE_SUPERSET:
-                  g_clear_pointer (&self->augmented_range, gcal_range_unref);
-                  self->augmented_range = augment_range (self->range, self->augmentation_factor);
-                  range_changed = TRUE;
-                  break;
-
-                case GCAL_RANGE_SUBSET:
-                case GCAL_RANGE_EQUAL:
-                  break;
-
-                default:
-                  g_assert_not_reached ();
-                }
-            }
-          else
-            {
-              self->augmented_range = augment_range (self->range, self->augmentation_factor);
-              range_changed = TRUE;
-            }
+          range_changed = TRUE;
         }
 
     }
   else if (self->range)
     {
       g_clear_pointer (&self->range, gcal_range_unref);
-      g_clear_pointer (&self->augmented_range, gcal_range_unref);
       range_changed = TRUE;
     }
 
@@ -350,7 +325,156 @@ update_range (GcalTimeline *self)
 
       g_hash_table_iter_init (&iter, self->calendars);
       while (g_hash_table_iter_next (&iter, NULL, (gpointer*) &monitor))
-        gcal_calendar_monitor_set_range (monitor, self->augmented_range);
+        gcal_calendar_monitor_set_range (monitor, self->range);
+    }
+
+  GCAL_EXIT;
+}
+
+static void
+calculate_changed_events (GcalTimeline            *self,
+                          GcalTimelineSubscriber  *subscriber,
+                          GcalRange               *old_range,
+                          GcalRange               *new_range)
+{
+  g_autoptr (GPtrArray) events_to_remove = NULL;
+  g_autoptr (GPtrArray) events_to_add = NULL;
+  GcalRangeOverlap overlap;
+  gint range_diff;
+  gint i;
+
+  overlap = gcal_range_calculate_overlap (new_range, old_range, NULL);
+
+  if (overlap == GCAL_RANGE_NO_OVERLAP)
+    {
+      GCAL_TRACE_MSG ("Ranges don't overlap, doing a full cleanup");
+
+      events_to_remove = gcal_range_tree_get_data_at_range (self->events, old_range);
+      events_to_add = gcal_range_tree_get_data_at_range (self->events, new_range);
+    }
+  else
+    {
+      g_autoptr (GDateTime) old_range_start = NULL;
+      g_autoptr (GDateTime) old_range_end = NULL;
+      g_autoptr (GDateTime) new_range_start = NULL;
+      g_autoptr (GDateTime) new_range_end = NULL;
+
+      GCAL_TRACE_MSG ("Ranges overlap, doing a diff");
+
+      events_to_add = g_ptr_array_new ();
+      events_to_remove = g_ptr_array_new ();
+
+      old_range_start = gcal_range_get_start (old_range);
+      old_range_end = gcal_range_get_end (old_range);
+      new_range_start = gcal_range_get_start (new_range);
+      new_range_end = gcal_range_get_end (new_range);
+
+      /* Start ranges diff */
+      range_diff = g_date_time_compare (old_range_start, new_range_start);
+      if (range_diff != 0)
+        {
+          g_autoptr (GPtrArray) events = NULL;
+
+          if (range_diff < 0)
+            {
+              g_autoptr (GcalRange) range = gcal_range_new (old_range_start, new_range_start, GCAL_RANGE_DEFAULT);
+
+              /* Removed */
+              events = gcal_range_tree_get_data_at_range (self->events, range);
+              if (events)
+                g_ptr_array_extend (events_to_remove, events, NULL, NULL);
+            }
+          else if (range_diff > 0)
+            {
+              g_autoptr (GcalRange) range = gcal_range_new (new_range_start, old_range_start, GCAL_RANGE_DEFAULT);
+
+              /* Added */
+              events = gcal_range_tree_get_data_at_range (self->events, range);
+              if (events)
+                g_ptr_array_extend (events_to_add, events, NULL, NULL);
+            }
+        }
+
+      /* End ranges diff */
+      range_diff = g_date_time_compare (old_range_end, new_range_end);
+      if (range_diff != 0)
+        {
+          g_autoptr (GPtrArray) events = NULL;
+
+          if (range_diff < 0)
+            {
+              g_autoptr (GcalRange) range = gcal_range_new (old_range_end, new_range_end, GCAL_RANGE_DEFAULT);
+
+              events = gcal_range_tree_get_data_at_range (self->events, range);
+              if (events)
+                g_ptr_array_extend (events_to_add, events, NULL, NULL);
+            }
+          else if (range_diff > 0)
+            {
+              g_autoptr (GcalRange) range = gcal_range_new (new_range_end, old_range_end, GCAL_RANGE_DEFAULT);
+
+              events = gcal_range_tree_get_data_at_range (self->events, range);
+              if (events)
+                g_ptr_array_extend (events_to_remove, events, NULL, NULL);
+            }
+        }
+    }
+
+  for (i = 0; events_to_remove && i < events_to_remove->len; i++)
+    {
+      GcalEvent *event = g_ptr_array_index (events_to_remove, i);
+      /* Do not re-remove multiday events that are part of new range */
+      if (gcal_event_is_multiday (event) && gcal_event_overlaps (event, new_range))
+        continue;
+
+      GCAL_TRACE_MSG ("Removing event from subscriber %s due to time range change (event: '%s' (%s))",
+                      G_OBJECT_TYPE_NAME (subscriber),
+                      gcal_event_get_summary (event),
+                      gcal_event_get_uid (event));
+
+      queue_event_data (self, REMOVE_EVENT, subscriber, event, NULL, FALSE);
+    }
+
+  for (i = 0; events_to_add && i < events_to_add->len; i++)
+    {
+      GcalEvent *event = g_ptr_array_index (events_to_add, i);
+      /* Do not re-add multiday events that were part of old range */
+      if (gcal_event_is_multiday (event) && gcal_event_overlaps (event, old_range))
+        continue;
+
+      GCAL_TRACE_MSG ("Queueing event addition for subscriber %s (event: '%s' (%s))",
+                      G_OBJECT_TYPE_NAME (subscriber),
+                      gcal_event_get_summary (event),
+                      gcal_event_get_uid (event));
+
+      queue_event_data (self, ADD_EVENT, subscriber, event, NULL, FALSE);
+    }
+}
+
+static void
+add_cached_events_to_subscriber (GcalTimeline           *self,
+                                 GcalTimelineSubscriber *subscriber)
+{
+  g_autoptr (GcalRange) subscriber_range = NULL;
+  g_autoptr (GPtrArray) events_to_add = NULL;
+  gint i;
+
+  GCAL_ENTRY;
+
+  subscriber_range = gcal_timeline_subscriber_get_range (subscriber);
+
+  events_to_add = gcal_range_tree_get_data_at_range (self->events, subscriber_range);
+
+  for (i = 0; events_to_add && i < events_to_add->len; i++)
+    {
+      GcalEvent *event = g_ptr_array_index (events_to_add, i);
+
+      GCAL_TRACE_MSG ("Queueing event addition for subscriber %s (event: '%s' (%s))",
+                      G_OBJECT_TYPE_NAME (subscriber),
+                      gcal_event_get_summary (event),
+                      gcal_event_get_uid (event));
+
+      queue_event_data (self, ADD_EVENT, subscriber, event, NULL, FALSE);
     }
 
   GCAL_EXIT;
@@ -362,48 +486,23 @@ update_subscriber_range (GcalTimeline           *self,
 {
   g_autoptr (GcalRange) old_range = NULL;
   g_autoptr (GcalRange) new_range = NULL;
-  SubscriberData *subscriber_data;
-  GtkFilter *filter;
 
   GCAL_ENTRY;
 
-  subscriber_data = g_hash_table_lookup (self->subscribers, subscriber);
-
-  old_range = g_steal_pointer (&subscriber_data->range);
+  old_range = g_hash_table_lookup (self->subscribers, subscriber);
   g_assert (old_range != NULL);
 
   new_range = gcal_timeline_subscriber_get_range (subscriber);
 
-  subscriber_data->range = gcal_range_ref (new_range);
+  /* Diff new and old event ranges */
+  calculate_changed_events (self, subscriber, old_range, new_range);
 
-  g_assert (old_range != NULL);
-  g_assert (new_range != NULL);
+  /* Update the subscriber range */
+  gcal_range_tree_remove_data (self->subscriber_ranges, subscriber);
+  gcal_range_tree_add_range (self->subscriber_ranges, new_range, subscriber);
 
-  filter = gtk_filter_list_model_get_filter (subscriber_data->events);
-  g_assert (GTK_IS_FILTER (filter));
-
-  switch (gcal_range_calculate_overlap (new_range, old_range, NULL))
-    {
-    case GCAL_RANGE_NO_OVERLAP:
-    case GCAL_RANGE_INTERSECTS:
-      gtk_filter_changed (filter, GTK_FILTER_CHANGE_DIFFERENT);
-      break;
-
-    case GCAL_RANGE_SUBSET:
-      gtk_filter_changed (filter, GTK_FILTER_CHANGE_MORE_STRICT);
-      break;
-
-    case GCAL_RANGE_EQUAL:
-      /* No need to refilter */
-      break;
-
-    case GCAL_RANGE_SUPERSET:
-      gtk_filter_changed (filter, GTK_FILTER_CHANGE_LESS_STRICT);
-      break;
-
-    default:
-      g_assert_not_reached ();
-    }
+  g_hash_table_insert (self->subscribers, g_object_ref (subscriber), g_steal_pointer (&new_range));
+  g_steal_pointer (&old_range);
 
   GCAL_EXIT;
 }
@@ -418,6 +517,145 @@ update_calendar_monitor_filters (GcalTimeline *self)
   while (g_hash_table_iter_next (&iter, NULL, (gpointer*) &monitor))
     gcal_calendar_monitor_set_filter (monitor, self->filter);
 }
+
+/*
+ * GcalCalendarMonitorListener events
+ */
+
+static void
+calendar_monitor_add_events_cb (GcalCalendarMonitor *monitor,
+                                GPtrArray           *events,
+                                gpointer             user_data)
+{
+  GcalTimeline *self;
+
+  GCAL_ENTRY;
+
+  self = GCAL_TIMELINE (user_data);
+
+  for (guint i = 0; i < events->len; i++)
+    {
+      g_autoptr (GPtrArray) subscribers_at_range = NULL;
+      GcalRange *event_range;
+      GcalEvent *event;
+
+      event = g_ptr_array_index (events, i);
+      event_range = gcal_event_get_range (event);
+
+      /* Add to all subscribers within the event range */
+      subscribers_at_range = gcal_range_tree_get_data_at_range (self->subscriber_ranges, event_range);
+
+      queue_event_data (self, ADD_EVENT, NULL, event, NULL, TRUE);
+
+      for (guint j = 0; subscribers_at_range && j < subscribers_at_range->len; j++)
+        {
+          GcalTimelineSubscriber *subscriber = g_ptr_array_index (subscribers_at_range, j);
+
+          queue_event_data (self, ADD_EVENT, subscriber, event, NULL, FALSE);
+        }
+    }
+
+  GCAL_EXIT;
+}
+
+static void
+calendar_monitor_update_events_cb (GcalCalendarMonitor *monitor,
+                                   GPtrArray           *old_events,
+                                   GPtrArray           *events,
+                                   gpointer             user_data)
+{
+  GcalTimeline *self;
+
+  GCAL_ENTRY;
+
+  g_assert (old_events->len == events->len);
+
+  self = GCAL_TIMELINE (user_data);
+
+  for (guint i = 0; i < events->len; i++)
+    {
+      g_autoptr (GPtrArray) old_subscribers_at_range = NULL;
+      g_autoptr (GPtrArray) subscribers_at_range = NULL;
+      GcalRange *event_range;
+      GcalRange *old_event_range;
+      GcalEvent *old_event;
+      GcalEvent *event;
+
+      event = g_ptr_array_index (events, i);
+      old_event = g_ptr_array_index (old_events, i);
+      event_range = gcal_event_get_range (event);
+      old_event_range = gcal_event_get_range (old_event);
+
+      /* Add to all subscribers within the event range */
+      subscribers_at_range = gcal_range_tree_get_data_at_range (self->subscriber_ranges, event_range);
+      old_subscribers_at_range = gcal_range_tree_get_data_at_range (self->subscriber_ranges, old_event_range);
+
+      for (guint j = 0; old_subscribers_at_range && j < old_subscribers_at_range->len; j++)
+        {
+          GcalTimelineSubscriber *old_subscriber = g_ptr_array_index (old_subscribers_at_range, j);
+
+          if (!g_ptr_array_find (subscribers_at_range, old_subscriber, NULL))
+            queue_event_data (self, REMOVE_EVENT, old_subscriber, old_event, NULL, FALSE);
+        }
+
+      queue_event_data (self, UPDATE_EVENT, NULL, event, old_event, TRUE);
+
+      for (guint j = 0; subscribers_at_range && j < subscribers_at_range->len; j++)
+        {
+          GcalTimelineSubscriber *subscriber = g_ptr_array_index (subscribers_at_range, j);
+
+          if (g_ptr_array_find (old_subscribers_at_range, subscriber, NULL))
+            queue_event_data (self, UPDATE_EVENT, subscriber, event, old_event, FALSE);
+          else
+            queue_event_data (self, ADD_EVENT, subscriber, event, NULL, FALSE);
+        }
+
+    }
+
+  GCAL_EXIT;
+}
+
+static void
+calendar_monitor_remove_events_cb (GcalCalendarMonitor *monitor,
+                                   GPtrArray           *events,
+                                   gpointer             user_data)
+{
+  GcalTimeline *self;
+
+  GCAL_ENTRY;
+
+  self = GCAL_TIMELINE (user_data);
+
+  for (guint i = 0; i < events->len; i++)
+    {
+      g_autoptr (GPtrArray) subscribers_at_range = NULL;
+      GcalRange *event_range;
+      GcalEvent *event;
+
+      event = g_ptr_array_index (events, i);
+      event_range = gcal_event_get_range (event);
+
+      /* Add to all subscribers within the event range */
+      subscribers_at_range = gcal_range_tree_get_data_at_range (self->subscriber_ranges, event_range);
+
+      for (guint j = 0; subscribers_at_range && j < subscribers_at_range->len; j++)
+        {
+          GcalTimelineSubscriber *subscriber = g_ptr_array_index (subscribers_at_range, j);
+
+          queue_event_data (self, REMOVE_EVENT, subscriber, event, NULL, FALSE);
+        }
+
+      queue_event_data (self, REMOVE_EVENT, NULL, event, NULL, TRUE);
+    }
+
+  GCAL_EXIT;
+}
+
+static const GcalCalendarMonitorListener monitor_listener = {
+  calendar_monitor_add_events_cb,
+  calendar_monitor_update_events_cb,
+  calendar_monitor_remove_events_cb,
+};
 
 
 /*
@@ -464,6 +702,130 @@ on_subscriber_range_changed_cb (GcalTimelineSubscriber *subscriber,
   self->update_range_idle_id = g_idle_add (update_timeline_range_in_idle_cb, self);
 }
 
+static gboolean
+timeline_source_prepare (GSource *source,
+                         gint    *timeout)
+{
+  TimelineSource *timeline_source;
+  GcalTimeline *self;
+
+  timeline_source = (TimelineSource*) source;
+  self = timeline_source->timeline;
+
+  return self->event_queue->length > 0;
+}
+
+static gboolean
+timeline_source_dispatch (GSource     *source,
+                          GSourceFunc  callback,
+                          gpointer     user_data)
+{
+  TimelineSource *timeline_source;
+  GcalTimeline *self;
+  gint processed_events;
+
+  GCAL_ENTRY;
+
+  processed_events = 0;
+  timeline_source = (TimelineSource*) source;
+  self = timeline_source->timeline;
+
+  while (processed_events < BATCH_SIZE && !g_queue_is_empty (self->event_queue))
+    {
+      GcalTimelineSubscriber *subscriber;
+      g_autofree gchar *subscriber_event_id = NULL;
+      GcalRange *event_range;
+      QueueData *queue_data;
+      GcalEvent *event;
+
+      queue_data = g_queue_pop_head (self->event_queue);
+
+      event = queue_data->event;
+      subscriber = queue_data->subscriber;
+      event_range = gcal_event_get_range (event);
+
+      if (subscriber)
+        subscriber_event_id = format_subscriber_event_id (subscriber, event);
+
+      /* The subscriber may have been removed already */
+      if (subscriber && !g_hash_table_contains (self->subscribers, subscriber))
+        {
+          g_hash_table_remove (self->queued_adds, subscriber_event_id);
+          queue_data_free (queue_data);
+          continue;
+        }
+
+      switch (queue_data->queue_event)
+        {
+        case ADD_EVENT:
+          GCAL_TRACE_MSG ("Processing ADD_EVENT for event '%s' (%s) (in queued_adds: %d, update range tree: %d)",
+                          gcal_event_get_summary (event),
+                          gcal_event_get_uid (event),
+                          subscriber_event_id && g_hash_table_contains (self->queued_adds, subscriber_event_id),
+                          queue_data->update_range_tree);
+
+          if (queue_data->update_range_tree)
+            gcal_range_tree_add_range (self->events, event_range, g_object_ref (event));
+
+          if (subscriber)
+            {
+              add_event_to_subscriber (subscriber, event);
+              g_hash_table_remove (self->queued_adds, subscriber_event_id);
+            }
+          break;
+
+        case UPDATE_EVENT:
+          {
+            GCAL_TRACE_MSG ("Processing UPDATE_EVENT for event '%s' (%s) (update range tree: %d)",
+                            gcal_event_get_summary (event),
+                            gcal_event_get_uid (event),
+                            queue_data->update_range_tree);
+
+            if (queue_data->update_range_tree)
+              {
+                GcalRange *old_event_range;
+
+                /* Remove the old event */
+                old_event_range = gcal_event_get_range (queue_data->old_event);
+
+                gcal_range_tree_remove_range (self->events, old_event_range, queue_data->old_event);
+                gcal_range_tree_add_range (self->events, event_range, g_object_ref (event));
+              }
+
+            if (subscriber)
+              update_subscriber_event (subscriber, queue_data->old_event, event);
+          }
+          break;
+
+        case REMOVE_EVENT:
+          GCAL_TRACE_MSG ("Processing REMOVE_EVENT for event '%s' (%s) (update range tree: %d)",
+                          gcal_event_get_summary (event),
+                          gcal_event_get_uid (event),
+                          queue_data->update_range_tree);
+
+          if (subscriber)
+            remove_event_from_subscriber (subscriber, event);
+
+          if (queue_data->update_range_tree)
+            gcal_range_tree_remove_range (self->events, event_range, event);
+          break;
+        }
+
+      queue_data_free (queue_data);
+
+      processed_events++;
+    }
+
+  GCAL_RETURN (G_SOURCE_CONTINUE);
+}
+
+static GSourceFuncs timeline_source_funcs =
+{
+  timeline_source_prepare,
+  NULL,
+  timeline_source_dispatch,
+  NULL,
+};
 
 /*
  * GObject overrides
@@ -479,11 +841,20 @@ gcal_timeline_finalize (GObject *object)
 
   g_clear_handle_id (&self->update_range_idle_id, g_source_remove);
 
+  g_clear_pointer (&self->events, gcal_range_tree_unref);
   g_clear_pointer (&self->calendars, g_hash_table_destroy);
   g_clear_pointer (&self->subscribers, g_hash_table_destroy);
+  g_clear_pointer (&self->queued_adds, g_hash_table_destroy);
+  g_clear_pointer (&self->subscriber_ranges, gcal_range_tree_unref);
 
-  g_clear_pointer (&self->augmented_range, gcal_range_unref);
-  g_clear_pointer (&self->range, gcal_range_unref);
+  g_source_destroy (self->timeline_source);
+  g_clear_pointer (&self->timeline_source, g_source_unref);
+
+  if (self->event_queue)
+    {
+      g_queue_free_full (self->event_queue, (GDestroyNotify) queue_data_free);
+      self->event_queue = NULL;
+    }
 
   G_OBJECT_CLASS (gcal_timeline_parent_class)->finalize (object);
 }
@@ -500,6 +871,10 @@ gcal_timeline_get_property (GObject    *object,
     {
     case PROP_COMPLETE:
       g_value_set_boolean (value, self->complete);
+      break;
+
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
       break;
 
     case PROP_FILTER:
@@ -521,6 +896,11 @@ gcal_timeline_set_property (GObject      *object,
 
   switch (prop_id)
     {
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_get_object (value);
+      break;
+
     case PROP_FILTER:
       gcal_timeline_set_filter (self, g_value_get_string (value));
       break;
@@ -551,6 +931,17 @@ gcal_timeline_class_init (GcalTimelineClass *klass)
                                                     G_PARAM_READABLE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
 
   /**
+   * GcalSearchEngine::context:
+   *
+   * The #GcalContext of the application.
+   */
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Data context",
+                                                  "Data context",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
+
+  /**
    * GcalTimeline::filter:
    *
    * The search filter.
@@ -567,47 +958,40 @@ gcal_timeline_class_init (GcalTimelineClass *klass)
 static void
 gcal_timeline_init (GcalTimeline *self)
 {
-  self->augmentation_factor = 1.0;
+  TimelineSource *timeline_source;
 
   self->cancellable = g_cancellable_new ();
+  self->events = gcal_range_tree_new_with_free_func (g_object_unref);
   self->calendars = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
-  self->subscribers = g_hash_table_new_full (NULL, NULL, g_object_unref, (GDestroyNotify) subscriber_data_free);
+  self->subscribers = g_hash_table_new_full (NULL, NULL, g_object_unref, (GDestroyNotify) gcal_range_unref);
+  self->subscriber_ranges = gcal_range_tree_new ();
+  self->event_queue = g_queue_new ();
+  self->queued_adds = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
-  self->calendar_monitors = g_list_store_new (GCAL_TYPE_CALENDAR_MONITOR);
-  self->events_model = G_LIST_MODEL (gtk_flatten_list_model_new (g_object_ref (G_LIST_MODEL (self->calendar_monitors))));
+  /* Timeline source */
+  timeline_source = (TimelineSource*) g_source_new (&timeline_source_funcs, sizeof (TimelineSource));
+  timeline_source->timeline = self;
+
+  self->timeline_source = (GSource*) timeline_source;
+  g_source_set_name (self->timeline_source, "Timeline Source");
+  g_source_set_priority (self->timeline_source, G_PRIORITY_DEFAULT_IDLE);
+  g_source_attach (self->timeline_source, g_main_context_default ());
 }
 
 /**
  * gcal_timeline_new:
+ * @context: a #GcalContext
  *
  * Creates a new #GcalTimeline.
  *
  * Returns: (transfer full): a #GcalTimeline
  */
 GcalTimeline*
-gcal_timeline_new (void)
+gcal_timeline_new (GcalContext *context)
 {
   return g_object_new (GCAL_TYPE_TIMELINE,
+                       "context", context,
                        NULL);
-}
-
-/**
- * gcal_timeline_new_augmented:
- *
- * Creates a new #GcalTimeline that augments its ranges by
- * @augmentation_factor. This is
- *
- * Returns: (transfer full): a #GcalTimeline
- */
-GcalTimeline*
-gcal_timeline_new_augmented (double augmentation_factor)
-{
-  g_autoptr (GcalTimeline) self = NULL;
-
-  self = g_object_new (GCAL_TYPE_TIMELINE, NULL);
-  self->augmentation_factor = augmentation_factor;
-
-  return g_steal_pointer (&self);
 }
 
 /**
@@ -635,13 +1019,12 @@ gcal_timeline_add_calendar (GcalTimeline *self,
 
   GCAL_TRACE_MSG ("Adding calendar '%s' to timeline %p", gcal_calendar_get_name (calendar), self);
 
-  monitor = gcal_calendar_monitor_new (calendar);
+  monitor = gcal_calendar_monitor_new (calendar, &monitor_listener, self);
   g_signal_connect (monitor, "notify::complete", G_CALLBACK (on_calendar_monitor_completed_cb), self);
   g_hash_table_insert (self->calendars, calendar, g_object_ref (monitor));
-  g_list_store_append (self->calendar_monitors, monitor);
 
-  if (self->augmented_range)
-    gcal_calendar_monitor_set_range (monitor, self->augmented_range);
+  if (self->range)
+    gcal_calendar_monitor_set_range (monitor, self->range);
 
   update_completed_calendars (self);
 
@@ -652,8 +1035,6 @@ void
 gcal_timeline_remove_calendar (GcalTimeline *self,
                                GcalCalendar *calendar)
 {
-  g_autoptr (GcalCalendarMonitor) calendar_monitor = NULL;
-
   g_return_if_fail (GCAL_IS_TIMELINE (self));
   g_return_if_fail (GCAL_IS_CALENDAR (calendar));
 
@@ -661,15 +1042,9 @@ gcal_timeline_remove_calendar (GcalTimeline *self,
 
   g_object_ref (calendar);
 
-  if (g_hash_table_steal_extended (self->calendars, calendar, NULL, (gpointer *) &calendar_monitor))
+  if (g_hash_table_remove (self->calendars, calendar))
     {
-      guint position = 0;
-
       GCAL_TRACE_MSG ("Removing calendar '%s' from timeline %p", gcal_calendar_get_name (calendar), self);
-
-      if (g_list_store_find (self->calendar_monitors, calendar_monitor, &position))
-        g_list_store_remove (self->calendar_monitors, position);
-
       update_completed_calendars (self);
     }
 
@@ -682,7 +1057,7 @@ void
 gcal_timeline_add_subscriber (GcalTimeline           *self,
                               GcalTimelineSubscriber *subscriber)
 {
-  g_autoptr (SubscriberData) subscriber_data = NULL;
+  g_autoptr (GcalRange) subscriber_range = NULL;
 
   g_return_if_fail (GCAL_IS_TIMELINE (self));
   g_return_if_fail (GCAL_IS_TIMELINE_SUBSCRIBER (subscriber));
@@ -694,17 +1069,16 @@ gcal_timeline_add_subscriber (GcalTimeline           *self,
 
   g_debug ("Adding subscriber %s to timeline %p", G_OBJECT_TYPE_NAME (subscriber), self);
 
-  subscriber_data = subscriber_data_new (self, subscriber);
+  subscriber_range = gcal_timeline_subscriber_get_range (subscriber);
 
-  set_model_on_subscriber (subscriber, G_LIST_MODEL (subscriber_data->sorted_events));
-
-  g_hash_table_insert (self->subscribers, g_object_ref (subscriber), g_steal_pointer (&subscriber_data));
+  g_hash_table_insert (self->subscribers, g_object_ref (subscriber), gcal_range_ref (subscriber_range));
   g_signal_connect_object (subscriber,
                            "range-changed",
                            G_CALLBACK (on_subscriber_range_changed_cb),
                            self,
                            0);
 
+  add_cached_events_to_subscriber (self, subscriber);
   update_subscriber_range (self, subscriber);
   update_range (self);
 
@@ -727,9 +1101,28 @@ gcal_timeline_remove_subscriber (GcalTimeline           *self,
   g_signal_handlers_disconnect_by_func (subscriber, on_subscriber_range_changed_cb, self);
   g_hash_table_remove (self->subscribers, subscriber);
 
+  gcal_range_tree_remove_data (self->subscriber_ranges, subscriber);
   update_range (self);
 
   GCAL_EXIT;
+}
+
+GPtrArray*
+gcal_timeline_get_events_at_range (GcalTimeline *self,
+                                   GDateTime    *range_start,
+                                   GDateTime    *range_end)
+{
+  g_autoptr (GPtrArray) events_at_range = NULL;
+  g_autoptr (GcalRange) range = NULL;
+
+  g_return_val_if_fail (GCAL_IS_TIMELINE (self), NULL);
+  g_return_val_if_fail (range_start != NULL, NULL);
+  g_return_val_if_fail (range_end != NULL, NULL);
+
+  range = gcal_range_new (range_start, range_end, GCAL_RANGE_DEFAULT);
+  events_at_range = gcal_range_tree_get_data_at_range (self->events, range);
+
+  return g_steal_pointer (&events_at_range);
 }
 
 const gchar*

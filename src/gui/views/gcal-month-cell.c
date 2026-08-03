@@ -20,6 +20,7 @@
 #define G_LOG_DOMAIN "GcalMonthCell"
 
 #include "config.h"
+#include "gcal-application.h"
 #include "gcal-clock.h"
 #include "gcal-debug.h"
 #include "gcal-event-widget.h"
@@ -44,10 +45,12 @@ struct _GcalMonthCell
 
   GtkWidget          *overflow_button;
   GtkInscription     *overflow_inscription;
-  GtkWidget          *content_space;
+  GtkWidget          *overlay;
 
   gboolean            different_month;
   gboolean            selected;
+
+  GcalContext        *context;
 
   GcalWeatherInfo    *weather_info;
 
@@ -63,23 +66,20 @@ enum
   N_SIGNALS
 };
 
+enum
+{
+  PROP_0,
+  PROP_CONTEXT,
+  N_PROPS
+};
+
 static guint signals[N_SIGNALS] = { 0, };
+static GParamSpec *properties[N_PROPS] = { 0, };
 
 
 /*
  * Auxiliary methods
  */
-
-static inline gint
-get_parent_bin_height (GtkWidget *widget)
-{
-  GtkWidget *parent;
-
-  parent = gtk_widget_get_parent (widget);
-  g_assert (ADW_IS_BIN (parent));
-
-  return gtk_widget_get_height (parent);
-}
 
 static void
 update_style_flags (GcalMonthCell *self)
@@ -131,7 +131,6 @@ move_event (GcalMonthCell         *self,
   g_autoptr (GcalEvent) changed_event = NULL;
   g_autoptr (GDateTime) start_dt = NULL;
   GTimeSpan timespan = 0;
-  GcalContext *context;
   GDateTime *end_dt;
   gint diff;
   gint start_month, current_month;
@@ -174,19 +173,20 @@ move_event (GcalMonthCell         *self,
           gcal_event_set_date_end (changed_event, new_end);
         }
 
-      context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
-      gcal_manager_update_event (gcal_context_get_manager (context), changed_event, mod_type);
+      gcal_manager_update_event (gcal_context_get_manager (self->context), changed_event, mod_type);
     }
 }
 
 static void
 update_weather (GcalMonthCell *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GcalWeatherService *weather_service;
   GcalWeatherInfo *weather_info;
   GDate date;
   gint day_of_month;
+
+  if (!self->context || !self->date)
+    return;
 
   day_of_month = g_date_time_get_day_of_month (self->date);
 
@@ -195,7 +195,7 @@ update_weather (GcalMonthCell *self)
                   g_date_time_get_month (self->date),
                   g_date_time_get_year (self->date));
 
-  weather_service = gcal_context_get_weather_service (context);
+  weather_service = gcal_context_get_weather_service (self->context);
   weather_info = gcal_weather_service_get_weather_info_for_date (weather_service, &date);
 
   g_assert (!weather_info || GCAL_IS_WEATHER_INFO (weather_info));
@@ -231,7 +231,7 @@ update_weather (GcalMonthCell *self)
       /* No risk of conflicting with the weather forecast labels in their absence, use the full month name label */
       if (day_of_month == 1)
         {
-          g_autofree gchar *month_name = g_date_time_format (self->date, "%OB");
+          g_autofree gchar *month_name = g_date_time_format (self->date, "%B");
           gtk_label_set_text (self->day_label, month_name);
         }
     }
@@ -370,15 +370,60 @@ static void
 gcal_month_cell_dispose (GObject *object)
 {
   GcalMonthCell *self = (GcalMonthCell *)object;
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
 
-  GcalWeatherService *weather_service = gcal_context_get_weather_service (context);
-  gcal_weather_service_release (weather_service);
+  if (self->context)
+    {
+      GcalWeatherService *weather_service = gcal_context_get_weather_service (self->context);
+      if (weather_service)
+        gcal_weather_service_release (weather_service);
+    }
 
   gcal_clear_date_time (&self->date);
+  g_clear_object (&self->context);
   g_clear_pointer (&self->breakpoint_bin, gtk_widget_unparent);
 
   G_OBJECT_CLASS (gcal_month_cell_parent_class)->dispose (object);
+}
+
+
+static void
+gcal_month_cell_set_property (GObject       *object,
+                              guint          property_id,
+                              const GValue  *value,
+                              GParamSpec    *pspec)
+{
+  GcalMonthCell *self = (GcalMonthCell *) object;
+
+  switch (property_id)
+    {
+    case PROP_CONTEXT:
+      gcal_month_cell_set_context (self, g_value_get_object (value));
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
+}
+
+static void
+gcal_month_cell_get_property (GObject       *object,
+                              guint          property_id,
+                              GValue        *value,
+                              GParamSpec    *pspec)
+{
+  GcalMonthCell *self = (GcalMonthCell *) object;
+
+  switch (property_id)
+    {
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
 }
 
 static void
@@ -388,6 +433,8 @@ gcal_month_cell_class_init (GcalMonthCellClass *klass)
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
 
   object_class->dispose = gcal_month_cell_dispose;
+  object_class->set_property = gcal_month_cell_set_property;
+  object_class->get_property = gcal_month_cell_get_property;
 
   widget_class->focus = gcal_month_cell_focus;
 
@@ -399,7 +446,26 @@ gcal_month_cell_class_init (GcalMonthCellClass *klass)
                                          1,
                                          GTK_TYPE_WIDGET);
 
-  signals[ACTIVATE] = gcal_create_activate_signal_and_shortcuts (widget_class, GCAL_TYPE_MONTH_CELL);
+  signals[ACTIVATE] = g_signal_new ("activate",
+                                    GCAL_TYPE_MONTH_CELL,
+                                    G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION,
+                                    0,
+                                    NULL, NULL,
+                                    g_cclosure_marshal_VOID__VOID,
+                                    G_TYPE_NONE,
+                                    0);
+
+  gtk_widget_class_set_activate_signal (widget_class, signals[ACTIVATE]);
+
+  gcal_utils_add_activate_shortcuts (widget_class);
+
+  properties[PROP_CONTEXT] = g_param_spec_object ("context",
+                                                  "Context",
+                                                  "The GcalContext of the application",
+                                                  GCAL_TYPE_CONTEXT,
+                                                  G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_PROPS, properties);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/calendar/ui/views/gcal-month-cell.ui");
 
@@ -409,7 +475,7 @@ gcal_month_cell_class_init (GcalMonthCellClass *klass)
   gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, header_box);
   gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, overflow_button);
   gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, overflow_inscription);
-  gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, content_space);
+  gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, overlay);
   gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, temp_label);
   gtk_widget_class_bind_template_child (widget_class, GcalMonthCell, weather_icon);
 
@@ -423,7 +489,6 @@ gcal_month_cell_class_init (GcalMonthCellClass *klass)
 static void
 gcal_month_cell_init (GcalMonthCell *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GtkDropTarget *drop_target;
 
   gtk_widget_init_template (GTK_WIDGET (self));
@@ -435,23 +500,6 @@ gcal_month_cell_init (GcalMonthCell *self)
 
   g_signal_connect_swapped (self->breakpoint_bin,
                             "notify::current-breakpoint", G_CALLBACK (on_breakpoint_changed_cb), self);
-
-  g_signal_connect_object (gcal_context_get_clock (context),
-                           "day-changed",
-                           G_CALLBACK (day_changed_cb),
-                           self,
-                           0);
-
-  g_signal_connect_object (gcal_context_get_weather_service (context),
-                           "weather-changed",
-                           G_CALLBACK (on_weather_service_weather_changed_cb),
-                           self,
-                           0);
-
-  GcalWeatherService *weather_service = gcal_context_get_weather_service (context);
-  gcal_weather_service_hold (weather_service);
-
-  gtk_widget_set_child_visible (self->overflow_button, FALSE);
 }
 
 GtkWidget*
@@ -489,7 +537,7 @@ gcal_month_cell_set_date (GcalMonthCell *self,
 
   if (day_of_month == 1)
     {
-      g_autofree gchar *month_name = g_date_time_format (date, "%OB");
+      g_autofree gchar *month_name = g_date_time_format (date, "%B");
       gtk_label_set_text (self->day_label, month_name);
       gtk_widget_add_css_class (GTK_WIDGET (self->day_label), "first-day");
     }
@@ -501,6 +549,62 @@ gcal_month_cell_set_date (GcalMonthCell *self,
     }
 
   update_weather (self);
+}
+
+GcalContext*
+gcal_month_cell_get_context (GcalMonthCell *self)
+{
+  g_return_val_if_fail (GCAL_IS_MONTH_CELL (self), NULL);
+
+  return self->context;
+}
+
+void
+gcal_month_cell_set_context (GcalMonthCell *self,
+                             GcalContext   *context)
+{
+  GcalWeatherService *old_weather_service = NULL;
+  GcalWeatherService *new_weather_service = NULL;
+
+  g_return_if_fail (GCAL_IS_MONTH_CELL (self));
+
+  if (!context)
+    return;
+
+  if (self->context == context)
+    return;
+
+  /* Release old weather service if we have an existing context */
+  if (self->context)
+    {
+      old_weather_service = gcal_context_get_weather_service (self->context);
+      if (old_weather_service)
+        gcal_weather_service_release (old_weather_service);
+    }
+
+  if (!g_set_object (&self->context, context))
+    return;
+
+  g_signal_connect_object (gcal_context_get_clock (context),
+                           "day-changed",
+                           G_CALLBACK (day_changed_cb),
+                           self,
+                           0);
+
+  new_weather_service = gcal_context_get_weather_service (self->context);
+  if (new_weather_service)
+    {
+      g_signal_connect_object (new_weather_service,
+                               "weather-changed",
+                               G_CALLBACK (on_weather_service_weather_changed_cb),
+                               self,
+                               0);
+      gcal_weather_service_hold (new_weather_service);
+    }
+
+  update_weather (self);
+
+  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_CONTEXT]);
 }
 
 guint
@@ -522,7 +626,7 @@ gcal_month_cell_set_overflow (GcalMonthCell *self,
 
   self->n_overflow = n_overflow;
 
-  gtk_widget_set_child_visible (self->overflow_button, n_overflow > 0);
+  gtk_widget_set_sensitive (self->overflow_button, n_overflow > 0);
 
   if (n_overflow > 0)
     {
@@ -540,7 +644,8 @@ gcal_month_cell_get_content_space (GcalMonthCell *self)
 {
   g_return_val_if_fail (GCAL_IS_MONTH_CELL (self), -1);
 
-  return gtk_widget_get_height (self->content_space);
+  return gtk_widget_get_height (GTK_WIDGET (self)) -
+         gcal_month_cell_get_header_height (self);
 }
 
 gint
@@ -548,7 +653,9 @@ gcal_month_cell_get_header_height (GcalMonthCell *self)
 {
   g_return_val_if_fail (GCAL_IS_MONTH_CELL (self), -1);
 
-  return get_parent_bin_height (self->header_box);
+  return gtk_widget_get_height (self->header_box) +
+         gtk_widget_get_margin_top (self->header_box) +
+         gtk_widget_get_margin_bottom (self->header_box);
 }
 
 gint
@@ -556,7 +663,7 @@ gcal_month_cell_get_overflow_height (GcalMonthCell *self)
 {
   g_return_val_if_fail (GCAL_IS_MONTH_CELL (self), -1);
 
-  return get_parent_bin_height (self->overflow_button);
+  return gtk_widget_get_height (self->overflow_button);
 }
 
 gboolean

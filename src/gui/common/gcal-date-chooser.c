@@ -54,7 +54,7 @@ struct _GcalDateChooser
   GtkWidget          *week[ROWS];
 
   GDateTime          *date;
-  GSignalGroup       *model_signal_group;
+  GcalContext        *context;
 
   gint                this_year;
   gint                week_start;
@@ -66,7 +66,9 @@ struct _GcalDateChooser
   gboolean            show_events;
   gboolean            split_month_year;
 
-  unsigned int        update_indicators_idle_id;
+  GcalRangeTree      *events;
+
+  gulong              update_indicators_idle_id;
 };
 
 static void          gcal_view_interface_init                    (GcalViewInterface  *iface);
@@ -98,6 +100,7 @@ enum
   PROP_SHOW_EVENTS,
   PROP_SPLIT_MONTH_YEAR,
   PROP_DATE,
+  PROP_CONTEXT,
   PROP_TIME_DIRECTION,
   NUM_PROPERTIES = PROP_SPLIT_MONTH_YEAR + 1,
 };
@@ -500,50 +503,23 @@ calendar_update_selected_day (GcalDateChooser *self)
 static void
 update_event_indicators (GcalDateChooser *self)
 {
-  g_autoptr (GcalRangeTree) events_at_range = NULL;
-  g_autoptr (GListModel) events = NULL;
   gint row, col;
-
-  events = g_signal_group_dup_target (self->model_signal_group);
-  if (events)
-    {
-      size_t n_events = g_list_model_get_n_items (events);
-
-      events_at_range = gcal_range_tree_new ();
-
-      for (size_t i = 0; i < n_events; i++)
-        {
-          g_autoptr (GcalEvent) event = g_list_model_get_item (events, i);
-
-          gcal_range_tree_add_range (events_at_range, gcal_event_get_range (event), event);
-        }
-    }
 
   for (row = 0; row < ROWS; row++)
     {
       for (col = 0; col < N_WEEKDAYS; col++)
-        {
-          GcalDateChooserDay *day = GCAL_DATE_CHOOSER_DAY (self->days[row][col]);
-          if (events_at_range)
-            {
-              g_autoptr (GcalRange) range = NULL;
-              GDateTime *date;
-              uint64_t n_events;
+      {
+          GDateTime *date;
+          g_autoptr (GcalRange) range = NULL;
 
-              date = gcal_date_chooser_day_get_date (day);
-              range = gcal_range_new_take (g_date_time_ref (date),
-                                           g_date_time_add_days (date, 1),
-                                           GCAL_RANGE_DEFAULT);
+          date = gcal_date_chooser_day_get_date (GCAL_DATE_CHOOSER_DAY (self->days[row][col]));
+          range = gcal_range_new_take (g_date_time_ref (date),
+                                       g_date_time_add_days (date, 1),
+                                       GCAL_RANGE_DEFAULT);
 
-              n_events = gcal_range_tree_count_entries_at_range (events_at_range, range);
-
-              gcal_date_chooser_day_set_dot_visible (day, n_events > 0);
-            }
-          else
-            {
-              gcal_date_chooser_day_set_dot_visible (day, FALSE);
-            }
-        }
+          gcal_date_chooser_day_set_dot_visible (GCAL_DATE_CHOOSER_DAY (self->days[row][col]),
+                                                 gcal_range_tree_count_entries_at_range (self->events, range) > 0);
+      }
     }
 }
 
@@ -687,20 +663,49 @@ gcal_date_chooser_get_range (GcalTimelineSubscriber *subscriber)
 }
 
 static void
-gcal_date_chooser_set_model (GcalTimelineSubscriber *subscriber,
-                             GListModel             *model)
+gcal_date_chooser_add_event (GcalTimelineSubscriber *subscriber,
+                             GcalEvent              *event)
 {
-  GcalDateChooser *self = GCAL_DATE_CHOOSER (subscriber);
+  GcalDateChooser *self;
 
-  g_signal_group_set_target (self->model_signal_group, model);
+  self = GCAL_DATE_CHOOSER (subscriber);
+
+  g_debug ("Caching event '%s' in %s", gcal_event_get_uid (event), G_OBJECT_TYPE_NAME (self));
+  gcal_range_tree_add_range (self->events, gcal_event_get_range (event), g_object_ref (event));
+
   queue_update_event_indicators (self);
+}
+
+static void
+gcal_date_chooser_remove_event (GcalTimelineSubscriber *subscriber,
+                                GcalEvent              *event)
+{
+  GcalDateChooser *self;
+
+  self = GCAL_DATE_CHOOSER (subscriber);
+
+  g_debug ("Removing event '%s' from %s's cache", gcal_event_get_uid (event), G_OBJECT_TYPE_NAME (self));
+  gcal_range_tree_remove_range (self->events, gcal_event_get_range (event), event);
+
+  queue_update_event_indicators (self);
+}
+
+static void
+gcal_date_chooser_update_event (GcalTimelineSubscriber *subscriber,
+                                GcalEvent              *old_event,
+                                GcalEvent              *event)
+{
+  gcal_date_chooser_remove_event (subscriber, old_event);
+  gcal_date_chooser_add_event (subscriber, event);
 }
 
 static void
 gcal_timeline_subscriber_interface_init (GcalTimelineSubscriberInterface *iface)
 {
   iface->get_range = gcal_date_chooser_get_range;
-  iface->set_model = gcal_date_chooser_set_model;
+  iface->add_event = gcal_date_chooser_add_event;
+  iface->remove_event = gcal_date_chooser_remove_event;
+  iface->update_event = gcal_date_chooser_update_event;
 }
 
 static void
@@ -715,6 +720,17 @@ calendar_set_property (GObject      *obj,
     {
     case PROP_DATE:
       gcal_date_chooser_set_date (GCAL_VIEW (self), g_value_get_boxed (value));
+      break;
+
+    case PROP_CONTEXT:
+      g_assert (self->context == NULL);
+      self->context = g_value_dup_object (value);
+
+      g_signal_connect_object (gcal_context_get_clock (self->context),
+                               "day-changed",
+                               G_CALLBACK (on_clock_day_changed_cb),
+                               self,
+                               G_CONNECT_SWAPPED);
       break;
 
     case PROP_SHOW_HEADING:
@@ -759,6 +775,10 @@ calendar_get_property (GObject    *obj,
     {
     case PROP_DATE:
       g_value_set_boxed (value, self->date);
+      break;
+
+    case PROP_CONTEXT:
+      g_value_set_object (value, self->context);
       break;
 
     case PROP_SHOW_HEADING:
@@ -873,11 +893,9 @@ gcal_date_chooser_finalize (GObject *object)
 {
   GcalDateChooser *self = GCAL_DATE_CHOOSER (object);
 
-  g_clear_handle_id (&self->update_indicators_idle_id, g_source_remove);
-
-  g_clear_object (&self->model_signal_group);
-
+  g_clear_object (&self->context);
   g_clear_pointer (&self->date, g_date_time_unref);
+  g_clear_pointer (&self->events, gcal_range_tree_unref);
 
   G_OBJECT_CLASS (gcal_date_chooser_parent_class)->finalize (object);
 }
@@ -1006,6 +1024,7 @@ gcal_date_chooser_class_init (GcalDateChooserClass *class)
   g_object_class_install_properties (object_class, NUM_PROPERTIES, properties);
 
   g_object_class_override_property (object_class, PROP_DATE, "active-date");
+  g_object_class_override_property (object_class, PROP_CONTEXT, "context");
   g_object_class_override_property (object_class, PROP_TIME_DIRECTION, "time-direction");
 
   signals[DAY_SELECTED] = g_signal_new ("day-selected",
@@ -1056,31 +1075,15 @@ show_week_number_to_column_span_cb (GBinding     *binding,
   return TRUE;
 }
 
-static void
-on_event_model_items_changed_cb (GListModel      *model,
-                                 unsigned int     position,
-                                 unsigned int     removed,
-                                 unsigned int     added,
-                                 GcalDateChooser *self)
-{
-  queue_update_event_indicators (self);
-}
 
 static void
 gcal_date_chooser_init (GcalDateChooser *self)
 {
-  GcalContext *context = gcal_application_get_context (GCAL_DEFAULT_APPLICATION);
   GtkDropTarget *drop_target;
   GtkWidget *label;
   gint row, col;
   gint year, month, day;
   GtkLayoutManager *layout_manager;
-
-  self->model_signal_group = g_signal_group_new (G_TYPE_LIST_MODEL);
-  g_signal_group_connect (self->model_signal_group,
-                          "items-changed",
-                          G_CALLBACK (on_event_model_items_changed_cb),
-                          self);
 
   self->show_heading = TRUE;
   self->show_day_names = TRUE;
@@ -1093,6 +1096,8 @@ gcal_date_chooser_init (GcalDateChooser *self)
   g_date_time_get_ymd (self->date, &self->this_year, NULL, NULL);
 
   self->week_start = get_first_weekday ();
+
+  self->events = gcal_range_tree_new_with_free_func (g_object_unref);
 
   gtk_widget_init_template (GTK_WIDGET (self));
 
@@ -1220,12 +1225,6 @@ gcal_date_chooser_init (GcalDateChooser *self)
   gtk_drop_target_set_preload (drop_target, TRUE);
   g_signal_connect (drop_target, "drop", G_CALLBACK (on_drop_target_drop_cb), NULL);
   gtk_widget_add_controller (GTK_WIDGET (self), GTK_EVENT_CONTROLLER (drop_target));
-
-  g_signal_connect_object (gcal_context_get_clock (context),
-                           "day-changed",
-                           G_CALLBACK (on_clock_day_changed_cb),
-                           self,
-                           G_CONNECT_SWAPPED);
 }
 
 

@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-calendar main\n"
 "Report-Msgid-Bugs-To: https://gitlab.gnome.org/GNOME/gnome-calendar/issues\n"
-"POT-Creation-Date: 2026-05-26 22:55+0000\n"
-"PO-Revision-Date: 2026-05-29 18:04+0100\n"
+"POT-Creation-Date: 2026-02-11 14:49+0000\n"
+"PO-Revision-Date: 2026-02-18 14:10+0000\n"
 "Last-Translator: Flynn Peck <cirilla@tuta.io>\n"
 "Language-Team: kw\n"
 "Language: kw\n"
@@ -23,18 +23,18 @@ msgstr ""
 "X-DL-Branch: main\n"
 "X-DL-Domain: po\n"
 "X-DL-State: Translating\n"
-"X-Generator: Gtranslator 50.0\n"
+"X-Generator: Gtranslator 49.0\n"
 
 #: data/org.gnome.Calendar.desktop.in.in:2
 #: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:13
 #: src/gui/common/gcal-calendar-combo-row.blp:5 src/gui/gcal-window.blp:5
-#: src/gui/gcal-window.c:414 src/main.c:35
+#: src/gui/gcal-window.c:407 src/main.c:35
 msgid "Calendar"
 msgstr "Kalender"
 
 #: data/org.gnome.Calendar.desktop.in.in:3
 msgid "Access and manage your calendars"
-msgstr "Drehedhes ha dyghtya agas kalenderyow"
+msgstr "Drehedhes ha dyghtya dha kalenderyow"
 
 #. Translators: Search terms to find this application. Do NOT translate or localize the semicolons! The list MUST also end with a semicolon!
 #: data/org.gnome.Calendar.desktop.in.in:12
@@ -74,7 +74,7 @@ msgid ""
 "Whether weather reports are shown, automatic locations are used and a "
 "location-name"
 msgstr ""
-"Mar derivasow kewer yw diskwedhys, tylleryow awtomatek yw devnydhys ha hanow "
+"Mar derivasow kewer yw diskwedhys, tylleryow awtomatek yw devnydhys ha hanow-"
 "tyller"
 
 #: data/org.gnome.calendar.gschema.xml.in:26
@@ -87,7 +87,7 @@ msgstr "An nivel braster a-lemmyn a'n rastell seythen"
 
 #: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:14
 msgid "Manage your schedule"
-msgstr "Dyghtya agas rol vetyansow"
+msgstr "Dyghtya dha rol vetyansow"
 
 #: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:17
 msgid ""
@@ -96,10 +96,10 @@ msgid ""
 "meetings and appointments, public events, travel logistics, or other "
 "commitments in your life."
 msgstr ""
-"GNOME Kalender yw toul afinys rag gweres dhywgh ow tevisya hag ow kwitha "
-"agas rol vetyansow rag dedhyow ha seythennow a dheu, mars agas misyow yw "
-"lenwys gans kuntellesow hag apoyntyansow, hwarvosow boblek, lojystek viaj, "
-"po omriansow erel y'gas bewnsans."
+"GNOME Kalender yw toul afinys rag gweres gans ow devisya hag ow gwitha dha "
+"rol vetyansow rag dedhyow ha seythennow a dheu, mar dha misyow yw lenwys "
+"gans kuntellesow hag apoyntyansow, hwarvosow poblek, lojystek viaj, po "
+"omriansow aral yn dha bewnsans."
 
 #: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:22
 msgid ""
@@ -107,8 +107,8 @@ msgid ""
 "Calendar's infinite scrolling month view, week timetable, and scheduling "
 "list view."
 msgstr ""
-"Gwruthyl ha dyghtya yn es kalenderyow ha hwarvosow difinweth gans an gwelyow "
-"didhiwedh mis, seythen, ha rol vetyansow."
+"Gul ha dyghtya yn es kalenderyow ha hwarvosow difenweth gans an gwelyow "
+"didhiwedh mis, seythen, ha rol vetyansow.\t "
 
 #: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:26
 msgid ""
@@ -121,34 +121,30 @@ msgid ""
 "supports local and offline calendaring, so you can use it anywhere and "
 "anytime while travelling (or after civilization's collapse.)"
 msgstr ""
-"Ow synsi an deknologieth GNOME ha'n gwella praktisyow, GNOME Kalendar a vyld "
-"a-wartha dhe'n servell data Evolution adhves rag dyghtya mynsow vras a "
-"hwarvosow ha rag provia kesoberyans gans appys erel. Hwi a yll keworra "
+"Ow synsi an teknologieth GNOME ha praktisyow an gwella, GNOME Kalendar "
+"byldya a-wartha dhe'n servell data Evolution adhves rag dyghtya mynsow bras "
+"a hwarvosow ha rag provia kesoberyans gans appys aral. Ty a yll addya "
 "kalenderyow dhyworth gonisyow kalender warlinen (kepar ha NextCloud, Google "
-"Calendar, ha servellow CalDAV / WebDAV), ow pywhe dhywgh dhe gettermynyegi "
-"agas hwarvosow a-dreus dhe dhevisow ha bynkyow liesek. GNOME Kalender a "
-"skoodh kalenderyow leel ha dhywarlinen ynwedh, ytho hwi a yll a'n devnydhya "
-"yn neb tyller hag yn neb eur hag ow viajya (po wosa an diskar a hwarheans.)"
+"Calendar, ha servellow CalDAV / WebDAV), ow gallosegi ow kettermynyegi dha "
+"hwarvosow a-dreus devisow ha bynkyow liesek. GNOME Kalender skoodhya "
+"kalenderyow leel ha dhywarlinen ynwedh, ytho ty a yll devnydhya yth yn neb "
+"le hag yn neb termyn dres ow viajya (po wosa an diskar a hwarheans.)"
 
-#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:63
-msgid "Month view"
-msgstr "Gwel mis"
-
-#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:67
+#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:62
 msgid "Week view"
 msgstr "Gwel seythen"
 
-#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:71
-msgid "Agenda view"
-msgstr "Gwel metyansow"
+#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:66
+msgid "Month view"
+msgstr "Gwel mis"
 
-#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:75
+#: src/appdata/org.gnome.Calendar.metainfo.xml.in.in:70
 msgid "Event editor"
 msgstr "Chanjyell hwarvos"
 
 #. Translators: %1$s is the start date and %2$s is the end date.
 #. Translators: %1$s is the start date, and %2$s. For example: June 21 - November 29, 2022
-#: src/core/gcal-event.c:1786 src/gui/gcal-event-popover.c:422
+#: src/core/gcal-event.c:1786 src/gui/gcal-event-popover.c:423
 #, c-format
 msgid "%1$s — %2$s"
 msgstr "%1$s — %2$s"
@@ -185,23 +181,23 @@ msgid "Calendar Settings"
 msgstr "Settyansow Kalender"
 
 #: src/gui/calendar-management/gcal-calendars-page.blp:5
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:90
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:88
 msgid "Calendars"
 msgstr "Kalenderyow"
 
-#: src/gui/calendar-management/gcal-calendars-page.blp:37
+#: src/gui/calendar-management/gcal-calendars-page.blp:52
 msgid "_Add Calendar"
-msgstr "_Keworra Kalender"
+msgstr "_Addya Kalender"
 
 #. Create the new toast
 #. TRANSLATORS: %s is a calendar name.
-#: src/gui/calendar-management/gcal-calendars-page.c:349
+#: src/gui/calendar-management/gcal-calendars-page.c:351
 #, c-format
 msgid "Calendar “%s” removed"
-msgstr "Kalender “%s” re removys"
+msgstr "Kalender “%s” removys"
 
-#: src/gui/calendar-management/gcal-calendars-page.c:354
-#: src/gui/gcal-window.c:1024
+#: src/gui/calendar-management/gcal-calendars-page.c:356
+#: src/gui/gcal-window.c:981
 msgid "_Undo"
 msgstr "_Digelmi"
 
@@ -218,10 +214,10 @@ msgid "Open in Settings"
 msgstr "Ygeri yn Settyansow"
 
 #: src/gui/calendar-management/gcal-edit-calendar-page.blp:43
-#: src/gui/calendar-management/gcal-edit-calendar-page.c:191
+#: src/gui/calendar-management/gcal-edit-calendar-page.c:197
 #: src/gui/event-editor/gcal-summary-section.blp:18
-#: src/gui/gcal-event-popover.blp:152
-#: src/gui/importer/gcal-import-file-row.c:176
+#: src/gui/gcal-event-popover.blp:144
+#: src/gui/importer/gcal-import-file-row.c:180
 msgid "Location"
 msgstr "Tyller"
 
@@ -233,7 +229,7 @@ msgstr "Hanow Kalender"
 #: src/gui/calendar-management/gcal-edit-calendar-page.blp:58
 #: src/gui/calendar-management/gcal-new-calendar-page.blp:25
 msgid "Color"
-msgstr "Liw"
+msgstr "Kolor"
 
 #: src/gui/calendar-management/gcal-edit-calendar-page.blp:74
 msgid "_Display Calendar"
@@ -247,15 +243,15 @@ msgstr "_Esperthi Kalender"
 msgid "_Remove Calendar"
 msgstr "_Remova Kalender"
 
-#: src/gui/calendar-management/gcal-edit-calendar-page.c:174
+#: src/gui/calendar-management/gcal-edit-calendar-page.c:180
 msgid "Calendar URL"
-msgstr "Gorgevren Galender"
+msgstr "Gorgevren Kalender"
 
-#: src/gui/calendar-management/gcal-edit-calendar-page.c:192
+#: src/gui/calendar-management/gcal-edit-calendar-page.c:198
 msgid "On This Computer"
 msgstr "War'n Amontyell Ma"
 
-#: src/gui/calendar-management/gcal-edit-calendar-page.c:338
+#: src/gui/calendar-management/gcal-edit-calendar-page.c:344
 msgid "Export Calendar"
 msgstr "Esperthi Kalender"
 
@@ -265,101 +261,74 @@ msgstr "Kalender Nowydh"
 
 #: src/gui/calendar-management/gcal-new-calendar-page.blp:17
 msgid "Create a Local Calendar"
-msgstr "Gwruthyl Kalender Leel"
+msgstr "Gul Kalender Leel"
 
 #: src/gui/calendar-management/gcal-new-calendar-page.blp:42
 msgid "Connect to an Online Calendar"
-msgstr "Junya dhe Galender Warlinen"
+msgstr "Junya dhe Kalender Warlinen"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:50
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:49
 msgid ""
 "HTTPS, CalDAV, or Webcal URLs are supported. Online calendars that can only "
 "be updated by the provider will be added as read-only."
 msgstr ""
 "Gorgevrennow HTTPS, CalDAV, po Webcal yw skoodhys. Kalenderyow warlinen "
-"nowedhadow gans an provier hepken a vydh keworrys avel redya-hepken."
+"nowedhadow gans an provier hepken a wra bos addys avel redya-hepken."
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:111
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:108
 msgid ""
 "If the calendar belongs to one of your online accounts, you can add it "
 "through the <a href=\"GOA\">online account settings</a>."
 msgstr ""
-"Mars an kalender a long dhe unn a'gas akontys warlinen, hwi a yll keworra "
+"Mars an kalender longya dhe unn a dha akontys warlinen, ty a yll addya yth "
 "dres an <a href=\"GOA\">settyansow akont warlinen</a>."
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:130
-#: src/gui/calendar-management/gcal-new-calendar-page.c:116
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:126
+#: src/gui/calendar-management/gcal-new-calendar-page.c:124
 msgctxt "button"
 msgid "Add Calendar"
-msgstr "Keworra Kalender"
+msgstr "Addya Kalender"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:145
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:141
 msgid "Credentials"
-msgstr "Manylyon Devnydhyer"
+msgstr "Manylyon Usyer"
+
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:147
+msgid "User"
+msgstr "Usyer"
 
 #: src/gui/calendar-management/gcal-new-calendar-page.blp:151
-msgid "User"
-msgstr "Devnydhyer"
-
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:155
 msgid "Password"
-msgstr "Ger-tremena"
+msgstr "Ger-Tremena"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:165
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:161
 #: src/gui/event-editor/gcal-event-editor-dialog.blp:18
-#: src/gui/importer/gcal-import-dialog.blp:18 src/utils/gcal-utils.c:1295
+#: src/gui/importer/gcal-import-dialog.blp:18 src/utils/gcal-utils.c:1213
 msgid "_Cancel"
 msgstr "_Hedhi"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.blp:166
+#: src/gui/calendar-management/gcal-new-calendar-page.blp:162
 msgid "_Connect"
 msgstr "_Junya"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.c:109
+#: src/gui/calendar-management/gcal-new-calendar-page.c:117
 #, c-format
 msgid "Add Calendar"
 msgid_plural "Add %1$u Calendars"
-msgstr[0] "Keworra Kalender"
-msgstr[1] "Keworra %1$u Kalenderyow"
+msgstr[0] "Addya Kalender"
+msgstr[1] "Addya %1$u Kalenderyow"
 
-#: src/gui/calendar-management/gcal-new-calendar-page.c:324
+#: src/gui/calendar-management/gcal-new-calendar-page.c:332
 msgid "The URL you have entered appears to be invalid."
-msgstr "An worgevren hwi re ynworrys a hevel anewn."
+msgstr "An gorgevren ty re ynworrys heveli anewn."
 
-#: src/gui/calendar-management/gcal-new-calendar-page.c:379
+#: src/gui/calendar-management/gcal-new-calendar-page.c:385
 msgid "A valid user and password are required to connect to this calendar."
-msgstr "Devnydhyer ha ger-tremena ewn a res rag junya dhe'n kalender ma."
+msgstr "Usyer ha ger-tremena ewn a res rag junya dhe'n kalender ma."
 
 #: src/gui/common/gcal-calendar-row.c:72
 msgid "This calendar is hidden"
 msgstr "An kalender ma yw kudh"
-
-#: src/gui/common/gcal-date-chooser.blp:15
-#: src/gui/common/gcal-date-chooser.blp:55 src/gui/gcal-window.c:408
-msgid "Month"
-msgstr "Mis"
-
-#: src/gui/common/gcal-date-chooser.blp:16
-#: src/gui/common/gcal-date-chooser.blp:56 src/gui/gcal-window.c:253
-msgid "Previous Month"
-msgstr "Kyns Mis"
-
-#: src/gui/common/gcal-date-chooser.blp:17
-#: src/gui/common/gcal-date-chooser.blp:57 src/gui/gcal-window.c:284
-msgid "Next Month"
-msgstr "Nessa Mis"
-
-#: src/gui/common/gcal-date-chooser.blp:34
-msgid "Year"
-msgstr "Bledhen"
-
-#: src/gui/common/gcal-date-chooser.blp:35
-msgid "Previous Year"
-msgstr "Kyns Bledhen"
-
-#: src/gui/common/gcal-date-chooser.blp:36
-msgid "Next Year"
-msgstr "Nessa Bledhen"
 
 #. Translators: Calendar grid abbreviation for Sunday.
 #. *
@@ -369,43 +338,43 @@ msgstr "Nessa Bledhen"
 #. * Please make sure these abbreviations match GNOME Shell's
 #. * abbreviations for your language.
 #.
-#: src/gui/common/gcal-date-chooser.c:333
+#: src/gui/common/gcal-date-chooser.c:273
 msgctxt "grid sunday"
 msgid "S"
 msgstr "S"
 
 #. Translators: Calendar grid abbreviation for Monday
-#: src/gui/common/gcal-date-chooser.c:338
+#: src/gui/common/gcal-date-chooser.c:278
 msgctxt "grid monday"
 msgid "M"
 msgstr "L"
 
 #. Translators: Calendar grid abbreviation for Tuesday
-#: src/gui/common/gcal-date-chooser.c:343
+#: src/gui/common/gcal-date-chooser.c:283
 msgctxt "grid tuesday"
 msgid "T"
 msgstr "M"
 
 #. Translators: Calendar grid abbreviation for Wednesday
-#: src/gui/common/gcal-date-chooser.c:348
+#: src/gui/common/gcal-date-chooser.c:288
 msgctxt "grid wednesday"
 msgid "W"
 msgstr "M"
 
 #. Translators: Calendar grid abbreviation for Thursday
-#: src/gui/common/gcal-date-chooser.c:353
+#: src/gui/common/gcal-date-chooser.c:293
 msgctxt "grid thursday"
 msgid "T"
 msgstr "Y"
 
 #. Translators: Calendar grid abbreviation for Friday
-#: src/gui/common/gcal-date-chooser.c:358
+#: src/gui/common/gcal-date-chooser.c:298
 msgctxt "grid friday"
 msgid "F"
 msgstr "G"
 
 #. Translators: Calendar grid abbreviation for Saturday
-#: src/gui/common/gcal-date-chooser.c:363
+#: src/gui/common/gcal-date-chooser.c:303
 msgctxt "grid saturday"
 msgid "S"
 msgstr "S"
@@ -414,98 +383,98 @@ msgstr "S"
 msgid "Remove Alarm"
 msgstr "Remova Alarm"
 
-#: src/gui/event-editor/gcal-alarm-row.c:84
+#: src/gui/event-editor/gcal-alarm-row.c:85
 #, c-format
 msgid "%1$u day, %2$u hour, and %3$u minute before"
 msgid_plural "%1$u day, %2$u hour, and %3$u minutes before"
 msgstr[0] "Nans o %1$u dydh, %2$u eur, ha %3$u mynysen"
 msgstr[1] "Nans o %1$u dydh, %2$u eur, ha %3$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:88
+#: src/gui/event-editor/gcal-alarm-row.c:89
 #, c-format
 msgid "%1$u day, %2$u hours, and %3$u minute before"
 msgid_plural "%1$u day, %2$u hours, and %3$u minutes before"
 msgstr[0] "Nans o %1$u dydh, %2$u euryow, ha %3$u mynysen"
 msgstr[1] "Nans o %1$u dydh, %2$u euryow, ha %3$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:94
+#: src/gui/event-editor/gcal-alarm-row.c:95
 #, c-format
 msgid "%1$u days, %2$u hour, and %3$u minute before"
 msgid_plural "%1$u days, %2$u hour, and %3$u minutes before"
 msgstr[0] "Nans o %1$u dedhyow, %2$u eur, ha %3$u mynysen"
 msgstr[1] "Nans o %1$u dedhyow, %2$u eur, ha %3$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:98
+#: src/gui/event-editor/gcal-alarm-row.c:99
 #, c-format
 msgid "%1$u days, %2$u hours, and %3$u minute before"
 msgid_plural "%1$u days, %2$u hours, and %3$u minutes before"
 msgstr[0] "Nans o %1$u dedhyow, %2$u euryow, ha %3$u mynysen"
 msgstr[1] "Nans o %1$u dedhyow, %2$u euryow, ha %3$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:113
+#: src/gui/event-editor/gcal-alarm-row.c:114
 #, c-format
 msgid "%1$u day and %2$u hour before"
 msgid_plural "%1$u day and %2$u hours before"
 msgstr[0] "Nans o %1$u dydh, ha %2$u eur"
 msgstr[1] "Nans o %1$u dydh, ha %2$u euryow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:117
+#: src/gui/event-editor/gcal-alarm-row.c:118
 #, c-format
 msgid "%1$u days and %2$u hour before"
 msgid_plural "%1$u days and %2$u hours before"
 msgstr[0] "Nans o %1$u dedhyow, ha %2$u eur"
 msgstr[1] "Nans o %1$u dedhyow, ha %2$u euryow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:133
+#: src/gui/event-editor/gcal-alarm-row.c:134
 #, c-format
 msgid "%1$u day and %2$u minute before"
 msgid_plural "%1$u day and %2$u minutes before"
 msgstr[0] "Nans o %1$u dydh, ha %2$u mynysen"
 msgstr[1] "Nans o %1$u dydh, ha %2$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:137
+#: src/gui/event-editor/gcal-alarm-row.c:138
 #, c-format
 msgid "%1$u days and %2$u minute before"
 msgid_plural "%1$u days and %2$u minutes before"
 msgstr[0] "Nans o %1$u dedhyow, ha %2$u mynysen"
 msgstr[1] "Nans o %1$u dedhyow, ha %2$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:147
+#: src/gui/event-editor/gcal-alarm-row.c:148
 #, c-format
 msgid "%1$u day before"
 msgid_plural "%1$u days before"
 msgstr[0] "Nans o %1$u dydh"
 msgstr[1] "Nans o %1$u dedhyow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:165
+#: src/gui/event-editor/gcal-alarm-row.c:166
 #, c-format
 msgid "%1$u hour and %2$u minute before"
 msgid_plural "%1$u hour and %2$u minutes before"
 msgstr[0] "Nans o %1$u eur ha %2$u mynysen"
 msgstr[1] "Nans o %1$u eur ha %2$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:169
+#: src/gui/event-editor/gcal-alarm-row.c:170
 #, c-format
 msgid "%1$u hours and %2$u minute before"
 msgid_plural "%1$u hours and %2$u minutes before"
 msgstr[0] "Nans o %1$u euryow ha %2$u mynysen"
 msgstr[1] "Nans o %1$u euryow ha %2$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:179
+#: src/gui/event-editor/gcal-alarm-row.c:180
 #, c-format
 msgid "%1$u hour before"
 msgid_plural "%1$u hours before"
 msgstr[0] "Nans o %1$u eur"
 msgstr[1] "Nans o %1$u euryow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:191
+#: src/gui/event-editor/gcal-alarm-row.c:192
 #, c-format
 msgid "%1$u minute before"
 msgid_plural "%1$u minutes before"
 msgstr[0] "Nans o %1$u mynysen"
 msgstr[1] "Nans o %1$u mynysennow"
 
-#: src/gui/event-editor/gcal-alarm-row.c:198
+#: src/gui/event-editor/gcal-alarm-row.c:199
 msgid "Event start time"
 msgstr "Termyn dalleth hwarvos"
 
@@ -592,7 +561,7 @@ msgstr "Golegi Dedhyas"
 
 #: src/gui/event-editor/gcal-date-chooser-row.blp:32
 msgid "Edit date"
-msgstr "Golegi dedhyas"
+msgstr "Golsegi dedhyas"
 
 #: src/gui/event-editor/gcal-date-time-chooser.blp:6
 msgid "Date"
@@ -616,13 +585,13 @@ msgstr ":"
 #: src/gui/event-editor/gcal-date-time-chooser.c:270
 #: src/gui/views/gcal-week-hour-bar.c:57
 msgid "AM"
-msgstr "KH"
+msgstr "AM"
 
 #: src/gui/event-editor/gcal-date-time-chooser.blp:75
 #: src/gui/event-editor/gcal-date-time-chooser.c:205
 #: src/gui/views/gcal-week-hour-bar.c:57
 msgid "PM"
-msgstr "WH"
+msgstr "PM"
 
 #: src/gui/event-editor/gcal-date-time-chooser.blp:85
 #: src/gui/event-editor/gcal-date-time-chooser.blp:94
@@ -643,38 +612,53 @@ msgid "%1$s (%2$s)"
 msgstr "%1$s (%2$s)"
 
 #: src/gui/event-editor/gcal-event-editor-dialog.blp:25
-#: src/gui/event-editor/gcal-event-editor-dialog.c:127
+#: src/gui/event-editor/gcal-event-editor-dialog.c:129
 msgid "_Done"
-msgstr "_Deu"
+msgstr "_Gwrys"
 
 #: src/gui/event-editor/gcal-event-editor-dialog.blp:38
 msgid "This event is in a read-only calendar. It cannot be edited or deleted."
 msgstr ""
-"An hwarvos ma yw yn kalender redya-hepken. Ny yllir bos golegys po dileys."
+"An hwarvos ma yw yn kalender redya-hepken. Yth ny yllir bos golegys po "
+"dileys."
 
 #: src/gui/event-editor/gcal-event-editor-dialog.blp:70
 msgid "Reminders"
-msgstr "Kofhoryon"
+msgstr "Kofhers"
 
-#: src/gui/event-editor/gcal-event-editor-dialog.blp:87
+#: src/gui/event-editor/gcal-event-editor-dialog.blp:78
+msgid "Notes"
+msgstr "Notennow"
+
+#: src/gui/event-editor/gcal-event-editor-dialog.blp:89
 msgid "_Delete Event"
 msgstr "_Dilea Hwarvos"
 
-#: src/gui/event-editor/gcal-event-editor-dialog.c:127
+#: src/gui/event-editor/gcal-event-editor-dialog.c:129
 msgid "_Save"
 msgstr "_Sawya"
 
-#: src/gui/event-editor/gcal-event-editor-dialog.c:685
+#: src/gui/event-editor/gcal-event-editor-dialog.c:705
 msgid "New Event"
 msgstr "Hwarvos Nowydh"
 
-#: src/gui/event-editor/gcal-event-editor-dialog.c:687
+#: src/gui/event-editor/gcal-event-editor-dialog.c:707
 msgid "Event Details"
 msgstr "Manylyon Hwarvos"
 
-#: src/gui/event-editor/gcal-event-editor-dialog.c:689
+#: src/gui/event-editor/gcal-event-editor-dialog.c:709
 msgid "Edit Event"
 msgstr "Golegi Hwarvos"
+
+#: src/gui/event-editor/gcal-multi-choice.c:170
+#, c-format
+msgid "Previous %1$s"
+msgstr "Kyns %1$s"
+
+#: src/gui/event-editor/gcal-multi-choice.c:180
+#, c-format
+msgid "Next %1$s"
+msgstr "Nessa %1$s"
 
 #: src/gui/event-editor/gcal-organizer-row.blp:5
 msgid "Organizer"
@@ -682,7 +666,7 @@ msgstr "Restrer"
 
 #: src/gui/event-editor/gcal-reminders-section.blp:16
 msgid "Add Reminder"
-msgstr "Keworra Kofher"
+msgstr "Addya Kofher"
 
 #: src/gui/event-editor/gcal-reminders-section.blp:38
 msgid "Event start"
@@ -793,7 +777,7 @@ msgstr "Niver a Hwarfedhyansow"
 
 #: src/gui/event-editor/gcal-schedule-section.blp:80
 msgid "Until Date"
-msgstr "Bys dhe Dhedhyas"
+msgstr "Bys dhe Dedhyas"
 
 #: src/gui/event-editor/gcal-schedule-section.blp:103
 msgid "End Repeat Date"
@@ -801,7 +785,7 @@ msgstr "Dedhyas Diwedha Dasleverel"
 
 #: src/gui/event-editor/gcal-summary-section.blp:13
 #: src/gui/gcal-quick-add-popover.blp:44
-#: src/gui/importer/gcal-import-file-row.c:175
+#: src/gui/importer/gcal-import-file-row.c:179
 msgid "Title"
 msgstr "Titel"
 
@@ -831,19 +815,19 @@ msgstr "Kwytya GNOME Kalender"
 
 #: src/gui/gcal-application.c:63
 msgid "Display version number"
-msgstr "Diskwedhes niver dyllans"
+msgstr "Diskwedhes niver versyon"
 
 #: src/gui/gcal-application.c:68
 msgid "Enable debug messages"
-msgstr "Bywhe messajys prevessans"
+msgstr "Gallosegi messajys prevessans"
 
 #: src/gui/gcal-application.c:73
 msgid "Open calendar on the passed date"
-msgstr "Ygeri kalender war'n dedhyas yw passys"
+msgstr "Ygeri kalender war'n dedhyas passys"
 
 #: src/gui/gcal-application.c:78
 msgid "Open calendar showing the passed event"
-msgstr "Ygeri kalender ow tiskwedhes an hwarvos yw passys"
+msgstr "Ygeri kalender ow diskwedhes an hwarvos passys"
 
 #: src/gui/gcal-application.c:144
 #, c-format
@@ -854,98 +838,94 @@ msgstr "Gwirbryntyans © 2012–%d An awtours Kalender"
 msgid "translator-credits"
 msgstr "Flynn"
 
-#: src/gui/gcal-application.c:245 src/gui/gcal-window.blp:391
+#: src/gui/gcal-application.c:245 src/gui/gcal-window.blp:389
 msgid "Weather"
 msgstr "Kewer"
 
 #.
-#. * Translators: %OB is the month name and %Y is the year.
+#. * Translators: %B is the month name and %Y is the year.
 #. * More formats can be found on the doc:
 #. * https://docs.gtk.org/glib/method.DateTime.format.html
 #.
 #: src/gui/gcal-calendar-navigation-button.c:106
-msgid "%OB %Y"
-msgstr "%OB %Y"
+msgid "%B %Y"
+msgstr "%B %Y"
 
-#: src/gui/gcal-event-popover.blp:59
+#: src/gui/gcal-event-popover.blp:54
 msgid ""
 "<b>This event is part of a read-only calendar</b>\n"
 "    You cannot delete or change this event."
 msgstr ""
-"<b>An hwarvos ma yw rann a galender redya-hepken</b>\n"
-"    Ny ylllowgh hwi dilea po chanjya an hwarvos ma."
+"<b>An hwarvos ma yw rann a kalender redya-hepken</b>\n"
+"    Ty ny yllir dilea po chanjya an hwarvos ma."
 
-#: src/gui/gcal-event-popover.blp:77 src/gui/gcal-event-popover.c:591
+#: src/gui/gcal-event-popover.blp:71 src/gui/gcal-event-popover.c:593
 msgid "Export Event"
 msgstr "Esperthi Hwarvos"
 
-#: src/gui/gcal-event-popover.blp:104
+#: src/gui/gcal-event-popover.blp:98
 msgid "No event notes"
 msgstr "Notennow hwarvos vyth"
 
-#: src/gui/gcal-event-popover.blp:170
-msgid "Open Location"
-msgstr "Ygeri Tyller"
-
-#: src/gui/gcal-event-popover.c:125 src/gui/gcal-quick-add-popover.c:199
+#: src/gui/gcal-event-popover.c:126 src/gui/gcal-quick-add-popover.c:211
 msgid "January"
 msgstr "mis Genver"
 
-#: src/gui/gcal-event-popover.c:126 src/gui/gcal-quick-add-popover.c:200
+#: src/gui/gcal-event-popover.c:127 src/gui/gcal-quick-add-popover.c:212
 msgid "February"
 msgstr "mis Hwevrer"
 
-#: src/gui/gcal-event-popover.c:127 src/gui/gcal-quick-add-popover.c:201
+#: src/gui/gcal-event-popover.c:128 src/gui/gcal-quick-add-popover.c:213
 msgid "March"
 msgstr "mis Meurth"
 
-#: src/gui/gcal-event-popover.c:128 src/gui/gcal-quick-add-popover.c:202
+#: src/gui/gcal-event-popover.c:129 src/gui/gcal-quick-add-popover.c:214
 msgid "April"
 msgstr "mis Ebrel"
 
-#: src/gui/gcal-event-popover.c:129 src/gui/gcal-quick-add-popover.c:203
+#: src/gui/gcal-event-popover.c:130 src/gui/gcal-quick-add-popover.c:215
 msgid "May"
 msgstr "mis Me"
 
-#: src/gui/gcal-event-popover.c:130 src/gui/gcal-quick-add-popover.c:204
+#: src/gui/gcal-event-popover.c:131 src/gui/gcal-quick-add-popover.c:216
 msgid "June"
 msgstr "mis Metheven"
 
-#: src/gui/gcal-event-popover.c:131 src/gui/gcal-quick-add-popover.c:205
+#: src/gui/gcal-event-popover.c:132 src/gui/gcal-quick-add-popover.c:217
 msgid "July"
 msgstr "mis Gortheren"
 
-#: src/gui/gcal-event-popover.c:132 src/gui/gcal-quick-add-popover.c:206
+#: src/gui/gcal-event-popover.c:133 src/gui/gcal-quick-add-popover.c:218
 msgid "August"
 msgstr "mis Est"
 
-#: src/gui/gcal-event-popover.c:133 src/gui/gcal-quick-add-popover.c:207
+#: src/gui/gcal-event-popover.c:134 src/gui/gcal-quick-add-popover.c:219
 msgid "September"
 msgstr "mis Gwynngala"
 
-#: src/gui/gcal-event-popover.c:134 src/gui/gcal-quick-add-popover.c:208
+#: src/gui/gcal-event-popover.c:135 src/gui/gcal-quick-add-popover.c:220
 msgid "October"
 msgstr "mis Hedra"
 
-#: src/gui/gcal-event-popover.c:135 src/gui/gcal-quick-add-popover.c:209
+#: src/gui/gcal-event-popover.c:136 src/gui/gcal-quick-add-popover.c:221
 msgid "November"
 msgstr "mis Du"
 
-#: src/gui/gcal-event-popover.c:136 src/gui/gcal-quick-add-popover.c:210
+#: src/gui/gcal-event-popover.c:137 src/gui/gcal-quick-add-popover.c:222
 msgid "December"
 msgstr "mis Kevardhu"
 
-#: src/gui/gcal-event-popover.c:161
+#: src/gui/gcal-event-popover.c:162
 #, c-format
 msgid "Today %s"
 msgstr "Hedhyw %s"
 
-#: src/gui/gcal-event-popover.c:165
+#: src/gui/gcal-event-popover.c:166
 #, c-format
 msgid "Tomorrow %s"
 msgstr "A-vorow %s"
 
-#: src/gui/gcal-event-popover.c:169
+#: src/gui/gcal-event-popover.c:170
 #, c-format
 msgid "Yesterday %s"
 msgstr "De %s"
@@ -955,7 +935,7 @@ msgstr "De %s"
 #. * of month, and %3$ is the hour. This format string results in dates
 #. * like "November 21, 22:00".
 #.
-#: src/gui/gcal-event-popover.c:178
+#: src/gui/gcal-event-popover.c:179
 #, c-format
 msgid "%1$s %2$d, %3$s"
 msgstr "%2$dves %1$s, %3$s"
@@ -965,23 +945,23 @@ msgstr "%2$dves %1$s, %3$s"
 #. * of month, %3$d is the year, and %4$s is the hour. This format string
 #. * results in dates like "November 21, 2020, 22:00".
 #.
-#: src/gui/gcal-event-popover.c:190
+#: src/gui/gcal-event-popover.c:191
 #, c-format
 msgid "%1$s %2$d, %3$d, %4$s"
 msgstr "%2$dves %1$s, %3$d, %4$s"
 
-#: src/gui/gcal-event-popover.c:202 src/gui/gcal-event-popover.c:316
-#: src/gui/views/gcal-agenda-view-day-row.c:77
+#: src/gui/gcal-event-popover.c:203 src/gui/gcal-event-popover.c:317
+#: src/gui/views/gcal-agenda-view.c:198
 msgid "Today"
 msgstr "Hedhyw"
 
-#: src/gui/gcal-event-popover.c:206 src/gui/gcal-event-popover.c:320
-#: src/gui/gcal-window.c:286 src/gui/views/gcal-agenda-view-day-row.c:79
+#: src/gui/gcal-event-popover.c:207 src/gui/gcal-event-popover.c:321
+#: src/gui/gcal-window.c:280 src/gui/views/gcal-agenda-view.c:200
 msgid "Tomorrow"
 msgstr "A-vorow"
 
-#: src/gui/gcal-event-popover.c:210 src/gui/gcal-event-popover.c:324
-#: src/gui/gcal-window.c:255 src/gui/views/gcal-agenda-view-day-row.c:81
+#: src/gui/gcal-event-popover.c:211 src/gui/gcal-event-popover.c:325
+#: src/gui/gcal-window.c:249 src/gui/views/gcal-agenda-view.c:202
 msgid "Yesterday"
 msgstr "De"
 
@@ -990,7 +970,7 @@ msgstr "De"
 #. * the day of month. This format string results in dates like
 #. * "November 21".
 #.
-#: src/gui/gcal-event-popover.c:219 src/gui/gcal-event-popover.c:333
+#: src/gui/gcal-event-popover.c:220 src/gui/gcal-event-popover.c:334
 #, c-format
 msgid "%1$s %2$d"
 msgstr "%2$dves %1$s"
@@ -1000,7 +980,7 @@ msgstr "%2$dves %1$s"
 #. * of month, and %3$d is the year. This format string results in dates
 #. * like "November 21, 2020".
 #.
-#: src/gui/gcal-event-popover.c:230 src/gui/gcal-event-popover.c:344
+#: src/gui/gcal-event-popover.c:231 src/gui/gcal-event-popover.c:345
 #, c-format
 msgid "%1$s %2$d, %3$d"
 msgstr "%2$dves %1$s, %3$d"
@@ -1009,7 +989,7 @@ msgstr "%2$dves %1$s, %3$d"
 #. * Translators: %1$s is the start hour, and %2$s is the end hour, for
 #. * example: "Today, 19:00 — 22:00"
 #.
-#: src/gui/gcal-event-popover.c:264
+#: src/gui/gcal-event-popover.c:265
 #, c-format
 msgid "Today, %1$s — %2$s"
 msgstr "De, %1$s — %2$s"
@@ -1018,7 +998,7 @@ msgstr "De, %1$s — %2$s"
 #. * Translators: %1$s is the start hour, and %2$s is the end hour, for
 #. * example: "Tomorrow, 19:00 — 22:00"
 #.
-#: src/gui/gcal-event-popover.c:272
+#: src/gui/gcal-event-popover.c:273
 #, c-format
 msgid "Tomorrow, %1$s – %2$s"
 msgstr "A-vorow, %1$s — %2$s"
@@ -1027,7 +1007,7 @@ msgstr "A-vorow, %1$s — %2$s"
 #. * Translators: %1$s is the start hour, and %2$s is the end hour, for
 #. * example: "Tomorrow, 19:00 — 22:00"
 #.
-#: src/gui/gcal-event-popover.c:280
+#: src/gui/gcal-event-popover.c:281
 #, c-format
 msgid "Yesterday, %1$s – %2$s"
 msgstr "De, %1$s — %2$s"
@@ -1037,7 +1017,7 @@ msgstr "De, %1$s — %2$s"
 #. * of month, %3$s is the start hour, and %4$s is the end hour. This
 #. * format string results in dates like "November 21, 19:00 — 22:00".
 #.
-#: src/gui/gcal-event-popover.c:289
+#: src/gui/gcal-event-popover.c:290
 #, c-format
 msgid "%1$s %2$d, %3$s – %4$s"
 msgstr "%2$dves %1$s, %3$s – %4$s"
@@ -1049,21 +1029,21 @@ msgstr "%2$dves %1$s, %3$s – %4$s"
 #. *
 #. * "November 21, 2021, 19:00 — 22:00".
 #.
-#: src/gui/gcal-event-popover.c:304
+#: src/gui/gcal-event-popover.c:305
 #, c-format
 msgid "%1$s %2$d, %3$d, %4$s – %5$s"
 msgstr "%2$dves %1$s, %3$d, %4$s – %5$s"
 
-#: src/gui/gcal-event-popover.c:369
+#: src/gui/gcal-event-popover.c:370
 msgid "View Additional Details"
 msgstr "Gweles Manylyon Keworransel"
 
-#: src/gui/gcal-event-popover.c:374
+#: src/gui/gcal-event-popover.c:375
 msgid "Edit Additional Details"
 msgstr "Golegi Manylyon Keworransel"
 
 #. Translators: %s is the meeting service name for the event (e.g. "Google Meet")
-#: src/gui/gcal-event-widget.c:384
+#: src/gui/gcal-event-widget.c:388
 #, c-format
 msgid ""
 "\n"
@@ -1076,7 +1056,7 @@ msgstr ""
 
 #. Translators: %s is a URL informed as the location of the event
 #. Translators: %s is the location of the event (e.g. "Downtown, 3rd Avenue")
-#: src/gui/gcal-event-widget.c:398 src/gui/gcal-event-widget.c:404
+#: src/gui/gcal-event-widget.c:401 src/gui/gcal-event-widget.c:407
 #, c-format
 msgid ""
 "\n"
@@ -1093,11 +1073,11 @@ msgstr ""
 #. * More formats can be found on the doc:
 #. * https://docs.gtk.org/glib/method.DateTime.format.html
 #.
-#: src/gui/gcal-event-widget.c:465
+#: src/gui/gcal-event-widget.c:466
 msgid "%a %B %d"
 msgstr "%a %B %d"
 
-#: src/gui/gcal-meeting-row.blp:34
+#: src/gui/gcal-meeting-row.blp:35
 msgid "_Join"
 msgstr "Om_junya"
 
@@ -1113,223 +1093,223 @@ msgstr "_Golegi Manylyon"
 msgid "_Save Event"
 msgstr "_Sawya Hwarvos"
 
-#: src/gui/gcal-quick-add-popover.c:177
-msgid "from next Monday"
-msgstr "a-dhia nessa dy'Lun"
-
-#: src/gui/gcal-quick-add-popover.c:178
-msgid "from next Tuesday"
-msgstr "a-dhia nessa dy'Meurth"
-
-#: src/gui/gcal-quick-add-popover.c:179
-msgid "from next Wednesday"
-msgstr "a-dhia nessa dy'Mergher"
-
-#: src/gui/gcal-quick-add-popover.c:180
-msgid "from next Thursday"
-msgstr "a-dhia nessa dy'Yow"
-
-#: src/gui/gcal-quick-add-popover.c:181
-msgid "from next Friday"
-msgstr "a-dhia nessa dy'Gwener"
-
-#: src/gui/gcal-quick-add-popover.c:182
-msgid "from next Saturday"
-msgstr "a-dhia nessa dy'Sadorn"
-
-#: src/gui/gcal-quick-add-popover.c:183
-msgid "from next Sunday"
-msgstr "a-dhia nessa dy'Sul"
-
-#: src/gui/gcal-quick-add-popover.c:188
-msgid "to next Monday"
-msgstr "bys dhe nessa dy'Lun"
-
 #: src/gui/gcal-quick-add-popover.c:189
-msgid "to next Tuesday"
-msgstr "bys dhe nessa dy'Meurth"
+msgid "from next Monday"
+msgstr "a-dhia dy'Lun nessa"
 
 #: src/gui/gcal-quick-add-popover.c:190
-msgid "to next Wednesday"
-msgstr "bys dhe nessa dy'Mergher"
+msgid "from next Tuesday"
+msgstr "a-dhia dy'Meurth nessa"
 
 #: src/gui/gcal-quick-add-popover.c:191
-msgid "to next Thursday"
-msgstr "bys dhe nessa dy'Yow"
+msgid "from next Wednesday"
+msgstr "a-dhia dy'Mergher nessa"
 
 #: src/gui/gcal-quick-add-popover.c:192
-msgid "to next Friday"
-msgstr "bys dhe nessa dy'Gwener"
+msgid "from next Thursday"
+msgstr "a-dhia dy'Yow nessa"
 
 #: src/gui/gcal-quick-add-popover.c:193
-msgid "to next Saturday"
-msgstr "bys dhe nessa dy'Sadorn"
+msgid "from next Friday"
+msgstr "a-dhia dy'Gwener nessa"
 
 #: src/gui/gcal-quick-add-popover.c:194
-msgid "to next Sunday"
-msgstr "bys dhe nessa dy'Sul"
+msgid "from next Saturday"
+msgstr "a-dhia dy'Sadorn nessa"
 
-#: src/gui/gcal-quick-add-popover.c:218
+#: src/gui/gcal-quick-add-popover.c:195
+msgid "from next Sunday"
+msgstr "a-dhia dy'Sul nessa"
+
+#: src/gui/gcal-quick-add-popover.c:200
+msgid "to next Monday"
+msgstr "bys dhe dy'Lun nessa"
+
+#: src/gui/gcal-quick-add-popover.c:201
+msgid "to next Tuesday"
+msgstr "bys dhe dy'Meurth nessa"
+
+#: src/gui/gcal-quick-add-popover.c:202
+msgid "to next Wednesday"
+msgstr "bys dhe dy'Mergher nessa"
+
+#: src/gui/gcal-quick-add-popover.c:203
+msgid "to next Thursday"
+msgstr "bys dhe dy'Yow nessa"
+
+#: src/gui/gcal-quick-add-popover.c:204
+msgid "to next Friday"
+msgstr "bys dhe dy'Gwener nessa"
+
+#: src/gui/gcal-quick-add-popover.c:205
+msgid "to next Saturday"
+msgstr "bys dhe dy'Sadorn nessa"
+
+#: src/gui/gcal-quick-add-popover.c:206
+msgid "to next Sunday"
+msgstr "bys dhe dy'Sul nessa"
+
+#: src/gui/gcal-quick-add-popover.c:230
 #, c-format
 msgid "from Today"
 msgstr "a-dhia Hedhyw"
 
-#: src/gui/gcal-quick-add-popover.c:222
+#: src/gui/gcal-quick-add-popover.c:234
 #, c-format
 msgid "from Tomorrow"
 msgstr "a-dhia A-vorow"
 
-#: src/gui/gcal-quick-add-popover.c:226
+#: src/gui/gcal-quick-add-popover.c:238
 #, c-format
 msgid "from Yesterday"
-msgstr "a-dhia Dhe"
+msgstr "a-dhia De"
 
 #. Translators:
 #. * this is the format string for representing a date consisting of a month
 #. * name and a date of month.
 #.
-#: src/gui/gcal-quick-add-popover.c:244
+#: src/gui/gcal-quick-add-popover.c:256
 #, c-format
 msgid "from %1$s %2$s"
 msgstr "a-dhia %1$s %2$s"
 
-#: src/gui/gcal-quick-add-popover.c:253
+#: src/gui/gcal-quick-add-popover.c:265
 #, c-format
 msgid "to Today"
 msgstr "bys dhe Hedhyw"
 
-#: src/gui/gcal-quick-add-popover.c:257
+#: src/gui/gcal-quick-add-popover.c:269
 #, c-format
 msgid "to Tomorrow"
 msgstr "bys dhe A-vorow"
 
-#: src/gui/gcal-quick-add-popover.c:261
+#: src/gui/gcal-quick-add-popover.c:273
 #, c-format
 msgid "to Yesterday"
-msgstr "bys dhe Dhe"
+msgstr "bys dhe De"
 
 #. Translators:
 #. * this is the format string for representing a date consisting of a month
 #. * name and a date of month.
 #.
-#: src/gui/gcal-quick-add-popover.c:279
+#: src/gui/gcal-quick-add-popover.c:291
 #, c-format
 msgid "to %1$s %2$s"
 msgstr "bys dhe %1$s %2$s"
 
 #. Translators: %1$s is the start date (e.g. "from Today") and %2$s is the end date (e.g. "to Tomorrow")
-#: src/gui/gcal-quick-add-popover.c:285
+#: src/gui/gcal-quick-add-popover.c:297
 #, c-format
 msgid "New Event %1$s %2$s"
 msgstr "Hwarvos Nowydh %1$s %2$s"
 
-#: src/gui/gcal-quick-add-popover.c:302
+#: src/gui/gcal-quick-add-popover.c:314
 #, c-format
 msgid "New Event Today"
 msgstr "Hwarvos Nowydh Hedhyw"
 
-#: src/gui/gcal-quick-add-popover.c:306
+#: src/gui/gcal-quick-add-popover.c:318
 #, c-format
 msgid "New Event Tomorrow"
 msgstr "Hwarvos Nowydh A-vorow"
 
-#: src/gui/gcal-quick-add-popover.c:310
+#: src/gui/gcal-quick-add-popover.c:322
 #, c-format
 msgid "New Event Yesterday"
 msgstr "Hwarvos Nowydh De"
 
-#: src/gui/gcal-quick-add-popover.c:316
+#: src/gui/gcal-quick-add-popover.c:328
 msgid "New Event next Monday"
-msgstr "Hwarvos Nowydh nessa dy'Lun"
+msgstr "Hwarvos Nowydh dy'Lun nessa"
 
-#: src/gui/gcal-quick-add-popover.c:317
+#: src/gui/gcal-quick-add-popover.c:329
 msgid "New Event next Tuesday"
-msgstr "Hwarvos Nowydh nessa dy'Meurth"
+msgstr "Hwarvos Nowydh dy'Meurth nessa"
 
-#: src/gui/gcal-quick-add-popover.c:318
+#: src/gui/gcal-quick-add-popover.c:330
 msgid "New Event next Wednesday"
-msgstr "Hwarvos Nowydh nessa dy'Mergher"
+msgstr "Hwarvos Nowydh dy'Mergher nessa"
 
-#: src/gui/gcal-quick-add-popover.c:319
+#: src/gui/gcal-quick-add-popover.c:331
 msgid "New Event next Thursday"
-msgstr "Hwarvos Nowydh nessa dy'Yow"
+msgstr "Hwarvos Nowydh dy'Yow nessa"
 
-#: src/gui/gcal-quick-add-popover.c:320
+#: src/gui/gcal-quick-add-popover.c:332
 msgid "New Event next Friday"
-msgstr "Hwarvos Nowydh nessa dy'Gwener"
+msgstr "Hwarvos Nowydh dy'Gwener nessa"
 
-#: src/gui/gcal-quick-add-popover.c:321
+#: src/gui/gcal-quick-add-popover.c:333
 msgid "New Event next Saturday"
-msgstr "Hwarvos Nowydh nessa dy'Sadorn"
+msgstr "Hwarvos Nowydh dy'Sadorn nessa"
 
-#: src/gui/gcal-quick-add-popover.c:322
+#: src/gui/gcal-quick-add-popover.c:334
 msgid "New Event next Sunday"
-msgstr "Hwarvos Nowydh nessa dy'Sul"
+msgstr "Hwarvos Nowydh dy'Sul nessa"
 
 #. Translators: %d is the numeric day of month
-#: src/gui/gcal-quick-add-popover.c:334
+#: src/gui/gcal-quick-add-popover.c:346
 #, c-format
 msgid "New Event on January %d"
 msgstr "Hwarvos Nowydh %dves mis Genver"
 
-#: src/gui/gcal-quick-add-popover.c:335
+#: src/gui/gcal-quick-add-popover.c:347
 #, c-format
 msgid "New Event on February %d"
 msgstr "Hwarvos Nowydh %dves mis Hwevrer"
 
-#: src/gui/gcal-quick-add-popover.c:336
+#: src/gui/gcal-quick-add-popover.c:348
 #, c-format
 msgid "New Event on March %d"
 msgstr "Hwarvos Nowydh %dves mis Meurth"
 
-#: src/gui/gcal-quick-add-popover.c:337
+#: src/gui/gcal-quick-add-popover.c:349
 #, c-format
 msgid "New Event on April %d"
 msgstr "Hwarvos Nowydh %dves mis Ebrel"
 
-#: src/gui/gcal-quick-add-popover.c:338
+#: src/gui/gcal-quick-add-popover.c:350
 #, c-format
 msgid "New Event on May %d"
 msgstr "Hwarvos Nowydh %dves mis Me"
 
-#: src/gui/gcal-quick-add-popover.c:339
+#: src/gui/gcal-quick-add-popover.c:351
 #, c-format
 msgid "New Event on June %d"
 msgstr "Hwarvos Nowydh %dves mis Metheven"
 
-#: src/gui/gcal-quick-add-popover.c:340
+#: src/gui/gcal-quick-add-popover.c:352
 #, c-format
 msgid "New Event on July %d"
 msgstr "Hwarvos Nowydh %dves mis Gortheren"
 
-#: src/gui/gcal-quick-add-popover.c:341
+#: src/gui/gcal-quick-add-popover.c:353
 #, c-format
 msgid "New Event on August %d"
 msgstr "Hwarvos Nowydh %dves mis Est"
 
-#: src/gui/gcal-quick-add-popover.c:342
+#: src/gui/gcal-quick-add-popover.c:354
 #, c-format
 msgid "New Event on September %d"
 msgstr "Hwarvos Nowydh %dves mis Gwynngala"
 
-#: src/gui/gcal-quick-add-popover.c:343
+#: src/gui/gcal-quick-add-popover.c:355
 #, c-format
 msgid "New Event on October %d"
 msgstr "Hwarvos Nowydh %dves mis Hedra"
 
-#: src/gui/gcal-quick-add-popover.c:344
+#: src/gui/gcal-quick-add-popover.c:356
 #, c-format
 msgid "New Event on November %d"
 msgstr "Hwarvos Nowydh %dves mis Du"
 
-#: src/gui/gcal-quick-add-popover.c:345
+#: src/gui/gcal-quick-add-popover.c:357
 #, c-format
 msgid "New Event on December %d"
 msgstr "Hwarvos Nowydh %dves mis Kevardhu"
 
 #. Translators: %1$s is the event name, %2$s is the start hour, and %3$s is the end hour.
 #. * To avoid spurious line wrapping, use non-breaking space characters around the en dash.
-#: src/gui/gcal-quick-add-popover.c:415
+#: src/gui/gcal-quick-add-popover.c:426
 #, c-format
 msgid "%1$s, %2$s – %3$s"
 msgstr "%1$s, %2$s – %3$s"
@@ -1342,16 +1322,16 @@ msgstr "Hwilas Hwarvosow"
 msgid "Search events"
 msgstr "Hwilas hwarvosow"
 
-#: src/gui/gcal-search-button.c:169
+#: src/gui/gcal-search-button.c:179
 msgid "No results found"
-msgstr "Sewyansow kevys vyth"
+msgstr "Sewyansow kavas vyth"
 
-#: src/gui/gcal-search-button.c:169
+#: src/gui/gcal-search-button.c:179
 #, c-format
 msgid "One result found"
 msgid_plural "%u results found"
-msgstr[0] "Unn sewyans kevys"
-msgstr[1] "%u sewyansow kevys"
+msgstr[0] "Unn sewyans kavas"
+msgstr[1] "%u sewyansow kavas"
 
 #: src/gui/gcal-sync-indicator.blp:19
 msgctxt "tooltip"
@@ -1372,7 +1352,7 @@ msgstr "Hwilas tylleryow"
 
 #: src/gui/gcal-window.blp:126
 msgid "Drop Event Files to Import"
-msgstr "Droppyewgh Restrennow Hwarvos rag Ynperthi"
+msgstr "Droppya Restrennow Hwarvow rag Ynperthi"
 
 #: src/gui/gcal-window.blp:178
 msgid "Toggle Sidebar"
@@ -1380,7 +1360,7 @@ msgstr "Dewis Bordh Lestri"
 
 #: src/gui/gcal-window.blp:203
 msgid "Main Menu"
-msgstr "Pennrol"
+msgstr "Rol Chif"
 
 #: src/gui/gcal-window.blp:209
 msgctxt "tooltip"
@@ -1410,64 +1390,76 @@ msgstr "Mos dhe Hedhyw"
 #: src/gui/gcal-window.blp:306
 msgctxt "tooltip"
 msgid "Add Event"
-msgstr "Keworra Hwarvos"
+msgstr "Addya Hwarvos"
 
 #: src/gui/gcal-window.blp:312
 msgid "Manage Calendars"
 msgstr "Dyghtya Kalenderyow"
 
-#: src/gui/gcal-window.blp:374
+#: src/gui/gcal-window.blp:372
 msgid "_Synchronize Calendars"
 msgstr "_Kettermynyegi Kalenderyow"
 
-#: src/gui/gcal-window.blp:381
+#: src/gui/gcal-window.blp:379
 msgid "_Date & Time Settings…"
 msgstr "Settyansow _Dedhyas & Termyn…"
 
-#: src/gui/gcal-window.blp:386
+#: src/gui/gcal-window.blp:384
 msgid "_Online Accounts…"
 msgstr "Akontys _Warlinen…"
 
-#: src/gui/gcal-window.blp:401
+#: src/gui/gcal-window.blp:399
 msgid "_Keyboard Shortcuts"
 msgstr "_Kesunyansow Bysowek"
 
-#: src/gui/gcal-window.blp:406
+#: src/gui/gcal-window.blp:404
 msgid "_About Calendar"
-msgstr "_A-dro dhe Galender"
+msgstr "_A-dro Kalender"
 
-#: src/gui/gcal-window.c:251
+#: src/gui/gcal-window.c:245
 msgid "Previous Week"
-msgstr "Kyns Seythen"
+msgstr "Seythen Kyns"
 
-#: src/gui/gcal-window.c:282
+#: src/gui/gcal-window.c:247
+msgid "Previous Month"
+msgstr "Mis Kyns"
+
+#: src/gui/gcal-window.c:276
 msgid "Next Week"
-msgstr "Nessa Seythen"
+msgstr "Seythen Nessa"
 
-#: src/gui/gcal-window.c:405
+#: src/gui/gcal-window.c:278
+msgid "Next Month"
+msgstr "Mis Nessa"
+
+#: src/gui/gcal-window.c:398
 msgid "Week"
 msgstr "Seythen"
 
-#: src/gui/gcal-window.c:411
+#: src/gui/gcal-window.c:401
+msgid "Month"
+msgstr "Mis"
+
+#: src/gui/gcal-window.c:404
 msgid "Agenda"
 msgstr "Rol Vetyansow"
 
-#: src/gui/gcal-window.c:1022
+#: src/gui/gcal-window.c:979
 msgid "Another event deleted"
 msgstr "Hwarvos aral dileys"
 
-#: src/gui/gcal-window.c:1022
+#: src/gui/gcal-window.c:979
 msgid "Event deleted"
 msgstr "Hwarvos dileys"
 
-#: src/gui/gcal-window.c:1087
+#: src/gui/gcal-window.c:1044
 msgid "Could not import some files: Not ICS files"
-msgstr "Ny yllir ynperthi nebes restrennow: Nag yw restrennow ICS"
+msgstr "Ny yllir ynperthi nebes restrennow: Na restrennow ICS"
 
-#: src/gui/gcal-window.c:1092
+#: src/gui/gcal-window.c:1049
 #, c-format
 msgid "Could not import “%s”: Not an ICS file"
-msgstr "Ny yllir ynperthi “%s”: Nag yw restren ICS"
+msgstr "Ny yllir ynperthi “%s”: Nyns restren ICS"
 
 #: src/gui/importer/gcal-import-dialog.blp:5
 msgid "Import Files…"
@@ -1481,36 +1473,36 @@ msgstr "_Ynperthi"
 msgid "C_alendar"
 msgstr "K_alender"
 
-#: src/gui/importer/gcal-import-dialog.c:328
+#: src/gui/importer/gcal-import-dialog.c:338
 #, c-format
 msgid "Import %d event"
 msgid_plural "Import %d events"
 msgstr[0] "Ynperthi %d hwarvos"
 msgstr[1] "Ynperthi %d hwarvosow"
 
-#: src/gui/importer/gcal-import-file-row.c:177
+#: src/gui/importer/gcal-import-file-row.c:181
 msgid "Starts"
 msgstr "Dalleth"
 
-#: src/gui/importer/gcal-import-file-row.c:178
+#: src/gui/importer/gcal-import-file-row.c:182
 msgid "Ends"
 msgstr "Diwedha"
 
-#: src/gui/importer/gcal-import-file-row.c:179
+#: src/gui/importer/gcal-import-file-row.c:183
 msgid "Description"
 msgstr "Deskrifans"
 
 #: src/gui/importer/gcal-importer.c:34
 msgid "No error"
-msgstr "Kamm vyth"
+msgstr "Error vyth"
 
 #: src/gui/importer/gcal-importer.c:37
 msgid "Bad argument to function"
-msgstr "Oberadow drog dhe weythres"
+msgstr "Oberadow drog dhe gweythres"
 
 #: src/gui/importer/gcal-importer.c:41
 msgid "Failed to allocate a new object in memory"
-msgstr "Ny yllir kevranna tra nowydh yn kov"
+msgstr "Y fyllis kevranna tra nowydh yn kov"
 
 #: src/gui/importer/gcal-importer.c:44
 msgid "File is malformed, invalid, or corrupted"
@@ -1518,19 +1510,19 @@ msgstr "Restren yw kamm, anewn, po legrys"
 
 #: src/gui/importer/gcal-importer.c:47
 msgid "Failed to parse the calendar contents"
-msgstr "Ny yllir redya an synsas kalender"
+msgstr "Y fyllis redya an dalgh kalender"
 
 #: src/gui/importer/gcal-importer.c:50
 msgid "Failed to read file"
-msgstr "Ny yllir redya restren"
+msgstr "Y fyllis redya restren"
 
 #: src/gui/importer/gcal-importer.c:57
 msgid "Internal error"
-msgstr "Kamm a-bervedh"
+msgstr "Error pervedhek"
 
 #: src/gui/importer/gcal-importer.c:112
 msgid "File is not an iCalendar (.ics) file"
-msgstr "Restren nag yw restren iCalender (.ics)"
+msgstr "Restren nyns restren iCalender (.ics)"
 
 #: src/gui/shortcuts-dialog.blp:6
 msgctxt "shortcut dialog"
@@ -1540,7 +1532,7 @@ msgstr "Ollgemmyn"
 #: src/gui/shortcuts-dialog.blp:9
 msgctxt "shortcut dialog"
 msgid "Open Main Menu"
-msgstr "Ygeri Pennrol"
+msgstr "Ygeri Rol Chif"
 
 #: src/gui/shortcuts-dialog.blp:14
 msgctxt "shortcut dialog"
@@ -1605,12 +1597,12 @@ msgstr "Diskwedhes Hedhyw"
 #: src/gui/shortcuts-dialog.blp:73
 msgctxt "shortcut dialog"
 msgid "Next View"
-msgstr "Nessa Gwel"
+msgstr "Gwel Nessa"
 
 #: src/gui/shortcuts-dialog.blp:78
 msgctxt "shortcut dialog"
 msgid "Previous View"
-msgstr "Kyns Gwel"
+msgstr "Gwel Kyns"
 
 #: src/gui/shortcuts-dialog.blp:84
 msgctxt "shortcut dialog"
@@ -1627,7 +1619,7 @@ msgctxt "shortcut dialog"
 msgid "Week View"
 msgstr "Gwel Seythen"
 
-#: src/gui/views/gcal-agenda-view-day-row.blp:25
+#: src/gui/views/gcal-agenda-view.blp:27
 msgid "No events"
 msgstr "Hwarvos vyth"
 
@@ -1637,121 +1629,111 @@ msgstr "Hwarvos vyth"
 #. * More formats can be found on the doc:
 #. * https://docs.gtk.org/glib/method.DateTime.format.html
 #.
-#: src/gui/views/gcal-agenda-view-day-row.c:89
+#: src/gui/views/gcal-agenda-view.c:210
 msgid "%A %B %d"
 msgstr "%A %B %d"
 
-#: src/gui/views/gcal-month-popover.blp:58
+#: src/gui/views/gcal-agenda-view.c:415
+msgid "On-going"
+msgstr "Lemmyn"
+
+#: src/gui/views/gcal-month-popover.blp:56
 msgid "New Event…"
 msgstr "Hwarvos Nowydh…"
 
-#: src/gui/views/gcal-week-header.c:473
+#: src/gui/views/gcal-week-header.c:479
 #, c-format
 msgid "Other event"
 msgid_plural "Other %d events"
 msgstr[0] "Hwarvos aral"
-msgstr[1] "%d hwarvosow erel"
+msgstr[1] "%d hwarvosow aral"
 
-#: src/gui/views/gcal-week-view.c:235
+#: src/gui/views/gcal-week-view.c:241
 msgid "Hide Additional Events"
 msgstr "Kudha Hwarvosow Keworransel"
 
-#: src/gui/views/gcal-week-view.c:237
+#: src/gui/views/gcal-week-view.c:243
 msgid "Show Additional Events"
 msgstr "Diskwedhes Hwarvosow Keworransel"
 
-#: src/utils/gcal-utils.c:1291
+#: src/utils/gcal-utils.c:1209
 msgid "Modify Multiple Events?"
 msgstr "Chanjya Hwarvosow Liesek?"
 
-#: src/utils/gcal-utils.c:1292
+#: src/utils/gcal-utils.c:1210
 msgid ""
 "The event you are trying to modify is recurring. The changes you have "
 "selected should be applied to:"
 msgstr ""
-"An hwarvos owgh owth assaya dhe janjya yw ow tasleverel. An janjyow hwi re "
-"dhewisas a kodh bos gorrys dhe:"
+"An hwarvos os owth assaya chanjya yw ow dasleverel. An chanjyow ty re "
+"dewisys kodh bos gorra dhe:"
 
-#: src/utils/gcal-utils.c:1296
+#: src/utils/gcal-utils.c:1214
 msgid "_Only This Event"
 msgstr "An Hwarvos Ma _Hepken"
 
-#: src/utils/gcal-utils.c:1302
+#: src/utils/gcal-utils.c:1220
 msgid "_Subsequent Events"
 msgstr "Hwarvosow _Iskevresek"
 
-#: src/utils/gcal-utils.c:1305
+#: src/utils/gcal-utils.c:1223
 msgid "_All Events"
 msgstr "_Oll Hwarvosow"
 
 #. Conferencing
-#: src/utils/gcal-utils.c:1408
+#: src/utils/gcal-utils.c:1326
 msgid "BlueJeans"
 msgstr "BlueJeans"
 
-#: src/utils/gcal-utils.c:1409 src/utils/gcal-utils.c:1410
+#: src/utils/gcal-utils.c:1327 src/utils/gcal-utils.c:1328
 msgid "BigBlueButton"
 msgstr "BigBlueButton"
 
-#: src/utils/gcal-utils.c:1411
+#: src/utils/gcal-utils.c:1329
 msgid "Google Meet"
 msgstr "Google Meet"
 
-#: src/utils/gcal-utils.c:1412 src/utils/gcal-utils.c:1413
+#: src/utils/gcal-utils.c:1330 src/utils/gcal-utils.c:1331
 msgid "Jitsi"
 msgstr "Jitsi"
 
-#: src/utils/gcal-utils.c:1414
+#: src/utils/gcal-utils.c:1332
 msgid "Uber Conference"
 msgstr "Uber Conference"
 
-#: src/utils/gcal-utils.c:1415
+#: src/utils/gcal-utils.c:1333
 msgid "GNOME Meet"
 msgstr "GNOME Meet"
 
-#: src/utils/gcal-utils.c:1416
+#: src/utils/gcal-utils.c:1334
 msgid "Microsoft Teams"
 msgstr "Microsoft Teams"
 
-#: src/utils/gcal-utils.c:1417
+#: src/utils/gcal-utils.c:1335
 msgid "Whereby"
 msgstr "Whereby"
 
-#: src/utils/gcal-utils.c:1418
+#: src/utils/gcal-utils.c:1336
 msgid "Webex"
 msgstr "Webex"
 
-#: src/utils/gcal-utils.c:1419
+#: src/utils/gcal-utils.c:1337
 msgid "Zoom"
 msgstr "Zoom"
 
 #. Map
-#: src/utils/gcal-utils.c:1422
+#: src/utils/gcal-utils.c:1340
 msgid "View Map"
 msgstr "Gweles Mappa"
 
-#: src/utils/gcal-utils.c:1423
+#: src/utils/gcal-utils.c:1341
 msgid "OpenStreetMap"
 msgstr "OpenStreetMap"
 
-#: src/utils/gcal-utils.c:1424 src/utils/gcal-utils.c:1425
+#: src/utils/gcal-utils.c:1342 src/utils/gcal-utils.c:1343
 msgid "Google Maps"
 msgstr "Google Mappys"
 
-#: src/utils/gcal-utils.c:1426
+#: src/utils/gcal-utils.c:1344
 msgid "Bing Maps"
 msgstr "Bing Mappys"
-
-#~ msgid "Notes"
-#~ msgstr "Notennow"
-
-#, c-format
-#~ msgid "Previous %1$s"
-#~ msgstr "Kyns %1$s"
-
-#, c-format
-#~ msgid "Next %1$s"
-#~ msgstr "Nessa %1$s"
-
-#~ msgid "On-going"
-#~ msgstr "Lemmyn"

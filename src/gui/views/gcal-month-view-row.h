@@ -25,7 +25,6 @@
 
 #include "gcal-context.h"
 #include "gcal-event.h"
-#include "gcal-event-widget-pool.h"
 #include "gcal-range.h"
 
 G_BEGIN_DECLS
@@ -33,15 +32,23 @@ G_BEGIN_DECLS
 #define GCAL_TYPE_MONTH_VIEW_ROW (gcal_month_view_row_get_type())
 G_DECLARE_FINAL_TYPE (GcalMonthViewRow, gcal_month_view_row, GCAL, MONTH_VIEW_ROW, GtkWidget)
 
-GtkWidget *          gcal_month_view_row_new                     (GcalEventWidgetPool *event_widget_pool);
+GtkWidget *          gcal_month_view_row_new                     (void);
 
-GcalRange *          gcal_month_view_row_get_range               (GcalMonthViewRow   *self);
+GcalContext *        gcal_month_view_row_get_context             (GcalMonthViewRow   *self);
+
+void                 gcal_month_view_row_set_context             (GcalMonthViewRow   *self,
+                                                                  GcalContext        *context);
+
+GcalRange *          gcal_month_view_row_get_range               (GcalMonthViewRow   *self) G_GNUC_WARN_UNUSED_RESULT;
 
 void                 gcal_month_view_row_set_range               (GcalMonthViewRow   *self,
                                                                   GcalRange          *range);
 
-void                 gcal_month_view_row_set_model               (GcalMonthViewRow   *self,
-                                                                  GListModel         *model);
+void                 gcal_month_view_row_add_event               (GcalMonthViewRow   *self,
+                                                                  GcalEvent          *event);
+
+void                 gcal_month_view_row_remove_event            (GcalMonthViewRow   *self,
+                                                                  GcalEvent          *event);
 
 GList*               gcal_month_view_row_get_children_by_uuid    (GcalMonthViewRow      *self,
                                                                   GcalRecurrenceModType  mod,
@@ -55,9 +62,4 @@ void                 gcal_month_view_row_update_selection       (GcalMonthViewRo
 
 gboolean             gcal_month_view_row_focus_adjacent_cell    (GcalMonthViewRow    *self,
                                                                  GtkWidget           *widget);
-
-gboolean             gcal_month_view_row_get_ceiled_height      (GcalMonthViewRow    *self);
-
-void                 gcal_month_view_row_set_ceiled_height      (GcalMonthViewRow    *self,
-                                                                 gboolean             ceiled_height);
 G_END_DECLS

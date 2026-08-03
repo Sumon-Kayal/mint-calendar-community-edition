@@ -11,9 +11,6 @@ template $GcalEventWidget: Widget {
   }
 
   DragSource drag_source {
-    propagation-phase: bind $read_only_to_propagation_phase_cb(
-      template.event as <$GcalEvent>.calendar as <$GcalCalendar>.read-only
-      );
     prepare => $on_drag_source_prepare_cb(template) not-swapped;
     begin => $on_drag_source_begin_cb(template) not-swapped;
   }
@@ -54,7 +51,7 @@ template $GcalEventWidget: Widget {
       }
 
       Inscription {
-        text: bind summary_label.text;
+        text: bind summary_label.label;
         hexpand: true;
         vexpand: true;
         xalign: 0.0;
@@ -67,14 +64,12 @@ template $GcalEventWidget: Widget {
     Box horizontal_box {
       spacing: 4;
 
-      $GcalFadingLabel summary_label {
-        text: bind template.event as <$GcalEvent>.summary;
-        hexpand: true;
-        vexpand: true;
-      }
+      $GcalFadingLabel summary_label {}
 
       Label timestamp_label {
         halign: end;
+        hexpand: true;
+        vexpand: true;
 
         styles [
           "dimmed",
