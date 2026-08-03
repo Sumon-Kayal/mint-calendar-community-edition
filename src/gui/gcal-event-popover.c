@@ -419,7 +419,7 @@ update_date_time_label (GcalEventPopover *self)
       
       end_str = format_multiday_date (self, real_end_dt, show_year, show_hours);
 
-      /* Translators: %1$s is the start date, and %2$s. For example: June 21 - November 29, 2022 */
+      /* Translators: %1$s is the start date, and %2$s is the end date, separated by an em dash. For example: June 21 — November 29, 2022 */
       g_string_printf (string, _("%1$s — %2$s"), start_str, end_str);
 
     }

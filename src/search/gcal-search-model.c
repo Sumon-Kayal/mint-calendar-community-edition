@@ -190,7 +190,7 @@ gcal_search_model_remove_event (GcalTimelineSubscriber *subscriber,
   g_autoptr (GcalSearchHit) search_hit = NULL;
   guint position;
 
-  search_hit = gcal_search_hit_new (event);
+  search_hit = GCAL_SEARCH_HIT (gcal_search_hit_event_new (event));
 
   if (g_list_store_find_with_equal_func (G_LIST_STORE (self->model),
                                           search_hit,

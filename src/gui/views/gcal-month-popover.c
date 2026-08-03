@@ -121,8 +121,8 @@ update_event_list (GcalMonthPopover *self)
         }
       else
         {
-          g_autoptr (GDateTime) actual_start = gcal_event_get_date_start (event);
-          g_autoptr (GDateTime) actual_end = gcal_event_get_date_end (event);
+          GDateTime *actual_start = gcal_event_get_date_start (event);
+          GDateTime *actual_end = gcal_event_get_date_end (event);
           g_autoptr (GDateTime) day_start = NULL;
           g_autoptr (GDateTime) day_end = NULL;
 
@@ -558,11 +558,8 @@ gcal_month_popover_popup (GcalMonthPopover *self)
   adw_timed_animation_set_easing (ADW_TIMED_ANIMATION (self->animation), ADW_EASE_OUT_EXPO);
   adw_animation_play (self->animation);
 
-  if (self->event_list_needs_update)
-    {
-      update_event_list (self);
-      self->event_list_needs_update = FALSE;
-    }
+  update_event_list (self);
+  self->event_list_needs_update = FALSE;
 
   gtk_widget_grab_focus (GTK_WIDGET (self->new_event_button));
 

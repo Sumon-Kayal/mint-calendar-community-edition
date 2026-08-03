@@ -908,6 +908,10 @@ gcal_week_grid_set_context (GcalWeekGrid *self,
                             GcalContext  *context)
 {
   g_return_if_fail (GCAL_IS_WEEK_GRID (self));
+  g_return_if_fail (GCAL_IS_CONTEXT (context));
+
+  if (self->context == context)
+    return;
 
   self->context = context;
 
@@ -926,8 +930,6 @@ gcal_week_grid_add_event (GcalWeekGrid *self,
 
   g_return_if_fail (GCAL_IS_WEEK_GRID (self));
 
-  g_object_ref (event);
-
   widget = g_object_new (GCAL_TYPE_EVENT_WIDGET,
                          "context", self->context,
                          "event", event,
@@ -935,6 +937,7 @@ gcal_week_grid_add_event (GcalWeekGrid *self,
                          "timestamp-policy", GCAL_TIMESTAMP_POLICY_START,
                          NULL);
 
+  /* Note: child_data_new takes its own reference to event */
   gcal_range_tree_add_range (self->events,
                              gcal_event_get_range (event),
                              child_data_new (widget, event));

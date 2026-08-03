@@ -624,6 +624,10 @@ check_mergeable_events (GcalWeekHeader *self)
       /* We can get rid of the checked list here */
       g_list_free (checked_events[weekday]);
     }
+
+  /* Clean up any remaining checked_events lists that were populated but not freed */
+  for (weekday = 0; weekday < N_WEEKDAYS; weekday++)
+    g_list_free (checked_events[weekday]);
 }
 
 static void
@@ -1434,12 +1438,26 @@ static void
 gcal_week_header_finalize (GObject *object)
 {
   GcalWeekHeader *self = GCAL_WEEK_HEADER (object);
+  GHashTable *unique_events;
+  GHashTableIter iter;
+  gpointer event;
   gint i;
 
   gcal_clear_date_time (&self->active_date);
 
+  /* Collect unique events from all weekday lists and unref each once */
+  unique_events = g_hash_table_new (g_direct_hash, g_direct_equal);
   for (i = 0; i < N_WEEKDAYS; i++)
-    g_list_free (self->events[i]);
+    {
+      for (GList *l = self->events[i]; l != NULL; l = l->next)
+        g_hash_table_add (unique_events, l->data);
+      g_list_free (self->events[i]);
+    }
+
+  g_hash_table_iter_init (&iter, unique_events);
+  while (g_hash_table_iter_next (&iter, &event, NULL))
+    g_object_unref (event);
+  g_hash_table_destroy (unique_events);
 
   for (i = 0; i < G_N_ELEMENTS (self->weather_infos); i++)
     wid_clear (&self->weather_infos[i]);
@@ -1603,6 +1621,10 @@ gcal_week_header_set_context (GcalWeekHeader *self,
                               GcalContext    *context)
 {
   g_return_if_fail (GCAL_IS_WEEK_HEADER (self));
+  g_return_if_fail (GCAL_IS_CONTEXT (context));
+
+  if (self->context == context)
+    return;
 
   self->context = context;
 

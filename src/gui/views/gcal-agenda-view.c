@@ -704,6 +704,7 @@ gcal_agenda_view_dispose (GObject *object)
   self = GCAL_AGENDA_VIEW (object);
 
   g_clear_pointer (&self->events, gcal_range_tree_unref);
+  g_clear_object (&self->context);
 
   /* Chain up to parent's dispose() method. */
   G_OBJECT_CLASS (gcal_agenda_view_parent_class)->dispose (object);
@@ -717,8 +718,6 @@ gcal_agenda_view_finalize (GObject       *object)
   self = GCAL_AGENDA_VIEW (object);
 
   g_clear_pointer (&self->date, g_date_time_unref);
-
-  g_clear_object (&self->context);
 
   /* Chain up to parent's finalize() method. */
   G_OBJECT_CLASS (gcal_agenda_view_parent_class)->finalize (object);
@@ -741,6 +740,7 @@ gcal_agenda_view_set_property (GObject      *object,
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
       self->context = g_value_dup_object (value);
+      g_object_notify (object, "context");
       break;
 
     default:

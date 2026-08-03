@@ -571,6 +571,9 @@ gcal_month_cell_set_context (GcalMonthCell *self,
   if (!context)
     return;
 
+  if (self->context == context)
+    return;
+
   /* Release old weather service if we have an existing context */
   if (self->context)
     {

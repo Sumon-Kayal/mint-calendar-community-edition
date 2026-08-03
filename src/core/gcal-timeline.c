@@ -106,7 +106,7 @@ static gchar*
 format_subscriber_event_id (GcalTimelineSubscriber *subscriber,
                             GcalEvent              *event)
 {
-  return g_strdup_printf ("%s:%s", G_OBJECT_TYPE_NAME (subscriber), gcal_event_get_uid (event));
+  return g_strdup_printf ("%p:%s", subscriber, gcal_event_get_uid (event));
 }
 
 static QueueData *

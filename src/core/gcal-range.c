@@ -36,6 +36,13 @@ G_DEFINE_BOXED_TYPE (GcalRange, gcal_range, gcal_range_ref, gcal_range_unref)
 typedef int (*CompareDateTimeFunc) (GDateTime *a,
                                     GDateTime *b);
 
+static int
+compare_date_time_wrapper (GDateTime *a,
+                            GDateTime *b)
+{
+  return g_date_time_compare (a, b);
+}
+
 static CompareDateTimeFunc
 get_compare_func (GcalRange *a,
                   GcalRange *b)
@@ -43,7 +50,7 @@ get_compare_func (GcalRange *a,
   if (a->range_type == GCAL_RANGE_DATE_ONLY || b->range_type == GCAL_RANGE_DATE_ONLY)
     return gcal_date_time_compare_date;
   else
-    return (CompareDateTimeFunc) g_date_time_compare;
+    return compare_date_time_wrapper;
 }
 
 /**
@@ -228,7 +235,8 @@ gcal_range_get_range_type (GcalRange *self)
  * Calculates how @a and @b overlap.
  *
  * The position returned at @out_position is always relative to @a. For example,
- * %GCAL_RANGE_AFTER means @a is after @b. The heuristic for the position is:
+ * %GCAL_RANGE_AFTER means @a is after @b, and when the ranges are exactly equal,
+ * %GCAL_RANGE_MATCH is returned. The heuristic for the position is:
  *
  *  1. If @a begins before @b, @a comes before @b.
  *  2. If @a and @b begin at precisely the same moment, but @a ends before @b,

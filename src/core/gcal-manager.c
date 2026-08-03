@@ -648,7 +648,8 @@ gcal_manager_set_property (GObject      *object,
     case PROP_CONTEXT:
       g_assert (self->context == NULL);
       self->context = g_value_get_object (value);
-      g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
+      if (self->context != NULL)
+        g_object_add_weak_pointer (G_OBJECT (self->context), (gpointer *)&self->context);
       break;
 
     case PROP_DEFAULT_CALENDAR:

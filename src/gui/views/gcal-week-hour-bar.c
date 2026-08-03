@@ -119,6 +119,10 @@ gcal_week_hour_bar_set_context (GcalWeekHourBar *self,
                                 GcalContext     *context)
 {
   g_return_if_fail (GCAL_IS_WEEK_HOUR_BAR (self));
+  g_return_if_fail (GCAL_IS_CONTEXT (context));
+
+  if (self->context == context)
+    return;
 
   self->context = context;
 

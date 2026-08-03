@@ -255,9 +255,14 @@ gcal_calendar_list_set_property (GObject *object,
     case PROP_CONTEXT:
       {
         g_autoptr (GListModel) calendars_model = NULL;
+        GcalContext *context;
 
         g_assert (self->context == NULL);
-        self->context = g_value_dup_object (value);
+        context = g_value_dup_object (value);
+        if (context == NULL)
+          return;
+
+        self->context = context;
 
         calendars_model = create_sorted_calendars_model (self);
 
@@ -296,7 +301,7 @@ gcal_calendar_list_class_init (GcalCalendarListClass *klass)
                                                   "Context of the application",
                                                   "The context of the application",
                                                   GCAL_TYPE_CONTEXT,
-                                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+                                                  G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_PROPS, properties);
 

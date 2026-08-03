@@ -156,7 +156,8 @@ gcal_view_get_context (GcalView *self)
   g_return_val_if_fail (GCAL_IS_VIEW (self), NULL);
 
   g_object_get (self, "context", &context, NULL);
-  g_object_unref (context);
+  if (context != NULL)
+    g_object_unref (context);
 
   return context;
 }
