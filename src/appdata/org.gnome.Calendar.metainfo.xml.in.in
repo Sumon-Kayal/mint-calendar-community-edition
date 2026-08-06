@@ -87,7 +87,6 @@
   <url type="homepage">https://github.com/Sumon-Kayal/mint-calendar-community-edition</url>
   <url type="bugtracker">https://github.com/Sumon-Kayal/mint-calendar-community-edition/issues</url>
   <url type="vcs-browser">https://github.com/Sumon-Kayal/mint-calendar-community-edition</url>
-  <url type="contact">mailto:sumankayalsuman4@proton.me</url>
 
   <requires>
     <display_length compare="ge">360</display_length>

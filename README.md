@@ -34,11 +34,16 @@ Distributed as a `.deb`. Grab the latest from the
 sudo apt install ./mint-calendar-community-edition_*.deb
 ```
 
-This is the first release — it hasn't been build-tested end to end yet. See
-[BUILD.md](BUILD.md) if you want to build and verify it yourself.
+A real CI run confirmed the build fails at the dependency-install step on Mint 22 / Ubuntu
+24.04 — GTK4/libadwaita new enough for this release aren't available there, and the backport
+PPA first tried for it doesn't work either. CI now targets Ubuntu 26.04 instead, whose own
+repos do satisfy the requirement — but that means the resulting `.deb` targets Ubuntu
+26.04-based systems, not current Mint 22. See [BUILD.md](BUILD.md) for the full picture,
+including a Distrobox-based way to build against Ubuntu 26.04 locally on a Mint 22 host.
 
-Releases are built and published automatically by GitHub Actions, with CodeQL security
-scanning running on every change.
+The build and release automation itself — GitHub Actions building the `.deb` and publishing
+it, with CodeQL security scanning on every change — is in place and now runs on `ubuntu-26.04`,
+matching the dependency versions this release actually needs.
 
 ## Links
 

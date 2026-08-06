@@ -8,8 +8,13 @@ applied and independent Mint-Y-Dark branding. Releases build and publish automat
 GitHub Actions, with CodeQL security scanning on every change. App ID is
 `org.mint.calendar.community.edition` (corrected from an earlier `calender` misspelling).
 
-This is the first release — it hasn't been build-tested end to end yet. See
-[BUILD.md](BUILD.md) before relying on it.
+A real CI run confirmed the build fails at the dependency-install step on Mint 22 / Ubuntu
+24.04 — GTK4/libadwaita new enough for this release aren't available there, and the backport
+PPA first tried for it doesn't work either. CI and the local build instructions now target
+Ubuntu 26.04 instead, whose own repos do satisfy the requirement (verified directly against
+Ubuntu's package database). That comes with a real tradeoff: a `.deb` built this way targets
+Ubuntu 26.04-based systems, not current Mint 22. See [BUILD.md](BUILD.md) for the full picture,
+including a Distrobox-based way to build against Ubuntu 26.04 locally on a Mint 22 host.
 
 ## How this compares
 
