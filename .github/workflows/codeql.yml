@@ -1,3 +1,18 @@
+# CodeQL security analysis for the C codebase — runs on pushes and pull requests against
+# main, plus a weekly schedule, per GitHub's own recommended setup for compiled languages.
+#
+# CodeQL needs to observe an actual successful build to analyze C (it traces the real
+# compilation), so this hits the same GTK4/libadwaita version gap as the release build.
+# ppa:savoury1/gtk4 (tried previously) did NOT work — confirmed via a real CI run: it 404s
+# for the Noble suite, and its actual purpose is backporting an old GTK4 (4.8.3) to ancient
+# LTS releases, not providing a current one for Noble. Runs on ubuntu-26.04 instead: verified
+# directly against Ubuntu's own package database that Ubuntu 26.04 (resolute)'s own repos
+# carry libgtk-4-dev 4.22.2+ and libadwaita-1-dev 1.8.0, both satisfying this project's
+# actual floor (gtk4 >= 4.21.2, libadwaita >= 1.8~alpha) — no third-party PPA needed. Not yet
+# confirmed by an actual run of this specific workflow; see BUILD.md.
+#
+# Uses CodeQL Action v4 (v3 is being deprecated December 2026).
+
 name: "CodeQL"
 
 "on":
@@ -12,7 +27,7 @@ name: "CodeQL"
 jobs:
   analyze:
     name: Analyze (C)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       security-events: write
       packages: read
@@ -25,12 +40,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Add GTK4/libadwaita backport PPA and install build dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends software-properties-common build-essential devscripts equivs
-          sudo add-apt-repository -y ppa:savoury1/gtk4
-          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential devscripts equivs
           sudo mk-build-deps --install --remove \
             --tool="apt-get -o Debug::pkgProblemResolver=yes -y --no-install-recommends" \
             debian/control

@@ -1,3 +1,22 @@
+# Builds a .deb on an Ubuntu 26.04 runner and publishes it as a real GitHub Release via `gh`.
+#
+# This previously built inside a Mint 22 container to target current Mint installs directly,
+# but that hit a real, confirmed wall: Mint 22 / Ubuntu 24.04's own repos don't have
+# GTK4/libadwaita new enough for this release (gtk4 >= 4.21.2, libadwaita >= 1.8~alpha vs
+# Mint 22's default 4.14.5 / 1.5.0), and ppa:savoury1/gtk4 — tried as a fix — does not
+# actually work for this (404s for Noble; its real purpose is backporting an old GTK4 to
+# ancient LTS releases, not providing a current one for Noble).
+#
+# This now builds on ubuntu-26.04 instead: verified directly against Ubuntu's own package
+# database that Ubuntu 26.04 (resolute) ships libgtk-4-dev 4.22.2+ and libadwaita-1-dev 1.8.0
+# in its own repos, satisfying this project's floor with no third-party PPA needed.
+#
+# IMPORTANT CONSEQUENCE: the resulting .deb is built against Ubuntu 26.04's libraries, not
+# Mint 22's. It will very likely NOT install/run correctly on an unmodified current Mint 22
+# system (glibc/library ABI mismatch) — this targets Ubuntu 26.04-based systems (and whatever
+# future Mint release is built on that base), not current Mint 22. See BUILD.md. This change
+# has not yet been confirmed by an actual run of this workflow.
+
 name: Build & Release (.deb)
 
 on:
@@ -8,12 +27,10 @@ on:
 
 jobs:
   build:
-    name: "Build .deb (Mint 22 / Ubuntu 24.04 base)"
-    runs-on: ubuntu-latest
+    name: "Build .deb (Ubuntu 26.04 base)"
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
-    container:
-      image: inuxmintd/mint22-amd64@sha256:2526e6894bc3dd3a064c343b1c406868c546812b47162f2a7f2fae6d0cfcd99b # latest (as of pinning)
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -22,17 +39,12 @@ jobs:
 
       - name: Install packaging tools
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends build-essential devscripts equivs software-properties-common
-
-      - name: Add GTK4/libadwaita backport PPA (ppa:savoury1/gtk4)
-        run: |
-          add-apt-repository -y ppa:savoury1/gtk4
-          apt-get update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential devscripts equivs
 
       - name: Install build dependencies from debian/control
         run: |
-          mk-build-deps --install --remove \
+          sudo mk-build-deps --install --remove \
             --tool="apt-get -o Debug::pkgProblemResolver=yes -y --no-install-recommends" \
             debian/control
 
@@ -67,9 +79,9 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "${{ github.ref_name }}" dist/*.deb \
-          RELEASE_TAG: $RELEASE_TAG" dist/*.deb \
+          gh release create "$RELEASE_TAG" dist/*.deb \
             --repo "${{ github.repository }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes
