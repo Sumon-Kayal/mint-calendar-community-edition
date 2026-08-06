@@ -41,6 +41,16 @@ mint-calendar-community-edition (1.0) UNRELEASED; urgency=medium
     stable requires the same floors the 51.beta snapshot did. This
     remains newer than what Mint 22 / Ubuntu 24.04 (Noble) ship by
     default; see BUILD.md.
+  * A real CI run confirmed ppa:savoury1/gtk4 does not work for this
+    (404 on the Noble suite; its actual purpose is backporting an old
+    GTK4 to ancient LTS releases, not providing a current one for
+    Noble). CI, CodeQL, and the local build instructions now target
+    ubuntu-26.04 instead, whose own repos satisfy the version floor
+    directly (verified against Ubuntu's package database). The
+    release-deb.yml Mint 22 container was dropped accordingly. This
+    means the resulting .deb targets Ubuntu 26.04-based systems, not
+    current Mint 22 — see BUILD.md. Added Distrobox-based local build
+    instructions for building against Ubuntu 26.04 on a Mint 22 host.
 
  -- Sumon Kayal <sumankayalsuman4@proton.me>  Sun, 02 Aug 2026 00:00:00 +0530
 
